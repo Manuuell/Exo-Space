@@ -6,6 +6,150 @@ the build prompts (`prompts-*.md`).
 
 ---
 
+## Where the project stands (2026-11-14)
+
+Keep this section up to date after every step.
+
+- **Decided:** the story from start to finish, the scope (three planets of
+  the TRAPPIST-1 system) and the mechanics in general. See the decisions table
+  below and [lore-and-mechanics.md](lore-and-mechanics.md).
+- **In the repository:** the documents, the build prompts, the exoplanet
+  catalog (6,470 planets), 23 NASA reference models and an empty web starter
+  that builds and passes its two tests.
+- **Built:** nothing of the game yet.
+- **Next:** step 1 of the build order at the end of this file. It needs the
+  catalog reader (Prompt 1 in `prompts-world.md`) and the modelling kit
+  (Prompt 0 in `prompts-characters.md`) first.
+- **Deadline:** Sunday, November 15, 2026, 11:59 p.m.
+
+---
+
+## NPCs and the mega-rune (2026-11-14)
+
+Three more team decisions:
+
+- **NPCs** are people of other species: never human and never hostile.
+- **The final jump** needs only a mega-rune, which the player wins by
+  defeating the last boss.
+- **The player** is the last human left in the system.
+
+In [lore-and-mechanics.md](lore-and-mechanics.md), Part 1 and section 7. Still
+open there: who the last boss is, and what happened to the other humans.
+
+---
+
+## The last scene (2026-11-14)
+
+Team decision: after the recording the player does not go back. The worlds
+they visited are full of hostile creatures, so they are left in space, looking
+for a planet to live on. Also decided: the jump rune is found by completing
+the ruins of a planet, together with the relic.
+
+In [lore-and-mechanics.md](lore-and-mechanics.md), Part 1, with the catalog's
+figures for that last image (52 rocky, temperate planets) and three points
+still to confirm.
+
+---
+
+## Relics, the ship and the jump runes (2026-11-14)
+
+Three more team decisions:
+
+- **Relics.** Completing the ruins of a planet gives a relic, and each relic
+  shows a fragment of the story of Earth. The truth arrives piece by piece
+  before the ending.
+- **The ship.** The player has a ship that can be flown over the planet and
+  out into space.
+- **Jump runes.** To reach another planet the ship needs a jump rune, which
+  gives the fuel for the jump. Without one it still flies in space but does
+  not get far. This also answers how the final jump to Earth is possible.
+
+Written up in [lore-and-mechanics.md](lore-and-mechanics.md): Part 1 for the
+relics, section 7 for the ship and the runes, Part 3 for the new build order.
+Build prompt: Prompt 9 in [prompts-world.md](prompts-world.md).
+
+Nothing is built yet.
+
+---
+
+## Story, three planets and the ending (2026-11-14)
+
+The team closed the story and the scope. The twist, the focus on three planets
+and the jump through every exoplanet are the team's ideas; an AI assistant
+proposed starting options and helped develop them.
+
+- **Scope:** the whole catalog is on the map and can be analysed with the suit
+  visor, but only three planets can be landed on, all in the TRAPPIST-1
+  system: e (home), b (the depots) and h (the ruins).
+- **Story:** the player was born on TRAPPIST-1 e, a descendant of colonists.
+  Everyone believes a flare burned out the antenna that linked them to Earth.
+  In truth, the AI that planned the colonisation spent Earth itself, and the
+  first colonists hid it.
+- **Ending:** find the route, call home, Earth answers, the jump across every
+  exoplanet, arrival at a destroyed Earth, a satellite and its recording.
+
+Full text in [lore-and-mechanics.md](lore-and-mechanics.md): Part 1 for the
+story, section 13 for the jump, Part 3 for the recommended build order. Build
+prompt for the jump: Prompt 8 in [prompts-world.md](prompts-world.md).
+
+Nothing is built yet.
+
+---
+
+## Lore foundations (2026-11-14)
+
+The team chose the foundations of the story, from starting options proposed by
+an AI assistant:
+
+- **Protagonist:** born far from Earth, a descendant of colonists, who has
+  never seen it.
+- **Opposition:** the fauna of each planet, abandoned machines of earlier
+  expeditions and the guardians of ruins. All three.
+- **Goal:** find the route to Earth with the data gathered through the suit
+  visor, then call home with a transmitter rebuilt piece by piece. The game is
+  won when Earth answers.
+
+Written up in [lore-and-mechanics.md](lore-and-mechanics.md), Part 1, with
+what is still open: the order of the two goals (to confirm), why the colonists
+left, who the NPCs are, and how a signal that takes years to arrive gets an
+answer.
+
+Also today: 23 reference models downloaded from NASA 3D Resources into
+`reference-models/nasa/` (see `SOURCES.md` there).
+
+---
+
+## 3D printer and partner resources (2026-11-14)
+
+The team added a second mechanic: a 3D printer in the game, used to build the
+tools the player comes to need. Design, real precedent and what is still open:
+[lore-and-mechanics.md](lore-and-mechanics.md), section 12. Build prompt:
+Prompt 7 in [prompts-world.md](prompts-world.md).
+
+The Canadian Space Agency page listed among the challenge resources was
+reviewed; what is useful from it is under "Space Agency Partner resources"
+below and in [NASA-DATA.md](NASA-DATA.md).
+
+Nothing is built yet.
+
+---
+
+## Suit visor (2026-11-14)
+
+The team added a mechanic: the player's suit has a visor that analyses a
+planet before landing on it, following the general idea of NASA's "A Learning
+Game About Telescopes" (what you want to find out decides which instruments
+you need, under limits). It is the first piece of mission design in the game.
+
+- Design, real techniques and what is still open:
+  [lore-and-mechanics.md](lore-and-mechanics.md), section 11.
+- Build prompt: Prompt 6 in [prompts-world.md](prompts-world.md).
+- Credit for the NASA game: [NASA-DATA.md](NASA-DATA.md).
+
+Nothing is built yet.
+
+---
+
 ## Starting point (2026-11-14)
 
 The project starts today, from scratch, for the **NASA Space Apps Challenge
@@ -27,32 +171,44 @@ Archive. The player travels across those worlds looking for the way back home.
 | Universe | The confirmed planets of the NASA Exoplanet Archive |
 | Variety | Every planet gives a different experience, derived from its real data |
 | Look | The planet's real characteristics decide how it looks and which enemies it has |
-| Loading | By proximity: a planet is loaded only when the player gets close |
+| Loading | By proximity: a planet is loaded only when the player gets close. Not needed in this version, which has three playable planets |
+| Scope | Three planets that can be landed on, all in the TRAPPIST-1 system: e, b and h. The rest of the catalog can be analysed with the visor |
+| Ruins and relics | Every planet has ruins; completing them gives a relic with a fragment of Earth's story and the jump rune for the next planet |
+| NPCs | People of other species, never human and never hostile |
+| Final jump | Needs only a mega-rune, won by defeating the last boss |
+| Ship and travel | The player flies a ship over the planet and into space; reaching another planet needs a jump rune, which gives the fuel for the jump |
+| Ending | A plot twist: the jump to Earth across every exoplanet, a destroyed planet, and a satellite whose recording shows that the AI planning the missions spent Earth. The player does not go back: they are left in space, looking for a planet to live on |
 | Models | Start from NASA 3D Resources and rebuild them in the game's own style |
 | Gameplay | Third-person action and exploration |
 | Enemies | No hordes. They live in dungeons and appear on the map only because of a quest |
 | Dungeons | Separate interiors: a door leads to another scene with rooms and a reward |
 | Quests | Given by the NPCs on the map |
 | Story | Finding the way home |
+| Protagonist | Born on TRAPPIST-1 e, a descendant of colonists, who has never seen Earth; the last human left in the system |
+| Opposition | Fauna of each planet, abandoned machines of earlier expeditions and guardians of ruins |
+| Goal | Find the route to Earth, call home with a rebuilt transmitter and, when Earth answers, make the final jump |
+| Suit visor | Analyses a planet before landing, following the general idea of NASA's telescope learning game |
+| 3D printer | The player builds the tools they come to need with a 3D printer in the game |
 
 ### To be decided (by the team, not by an AI)
 
-1. **How the player travels between planets.** Picking a destination on a star
-   map and landing is cheap; flying the ship through space is a whole new
-   layer. What "loading by proximity" means depends on this.
-2. **Who the player is and why they are far from home.**
-3. **What happens with giant planets.** 2,494 of the 6,470 are four Earth radii
-   or larger and have no ground to land on.
-4. **Where the mission design the challenge asks for fits** (spacecraft,
-   instruments, budget, mass, power, data, communications). The NPC quests
-   decided so far are tasks inside the map.
-5. **Which parts of the base gameplay make it in by Sunday:** combat,
-   progression, loot, a ship of your own.
-6. **Whether NPCs talk from a fixed script or through AI.** AI needs a server
+1. **The details of the ship.** How it is flown and what there is to do in
+   space.
+2. **What is left of the story.** Who the last boss is, what happened to the
+   other humans, which fragment each relic shows, and the points to confirm
+   at the end of Part 1 of the design. Also the look of the protagonist and
+   of the NPC species.
+3. **The limits that make it mission design.** What the suit visor lets the
+   player choose and what limits it, and what printing a tool costs. Without
+   those limits the game is exploration and action, not what the challenge
+   asks for.
+4. **Which parts of the base gameplay make it in by Sunday:** combat,
+   progression, loot.
+5. **Whether NPCs talk from a fixed script or through AI.** AI needs a server
    and a key.
-7. **Single player or co-op.** The challenge values up to four players with
+6. **Single player or co-op.** The challenge values up to four players with
    roles; networked play is the riskiest piece.
-8. **The final name.**
+7. **The final name.**
 
 ---
 
@@ -109,7 +265,7 @@ on spaceappschallenge.org, read on 2026-11-14.
 ### Official challenge resources
 
 Listed on the challenge's Resources tab, read on 2026-11-14. All of them are
-about the process of designing a mission, which is open item 4 above.
+about the process of designing a mission, which is open item 3 above.
 
 | Resource | What it offers |
 |---|---|
@@ -128,6 +284,25 @@ Mission Using Virtual Reality", as a reference.
 The NASA Exoplanet Archive and NASA 3D Resources are not on that list. They
 still count as NASA data; using one of the listed resources as well ties the
 game more closely to the challenge.
+
+### Space Agency Partner resources
+
+The Canadian Space Agency (CSA) is one of the hackathon's Space Agency
+Partners, and the guide encourages using partner resources. From its Digital
+Games and Activities page, read on 2026-11-14:
+
+| Resource | What it is | What it is good for |
+|---|---|---|
+| [Game – OSIRIS-REx](https://www.asc-csa.gc.ca/eng/satellites/osiris-rex/activities/game.asp) | With the Canadian laser altimeter the player reads a colour map of asteroid Bennu and picks the best site to collect a sample | A second reference for the suit visor: analyse with an instrument, then decide where to go down |
+| [3D printing models](https://www.asc-csa.gc.ca/eng/multimedia/search/?type=1&search=3d%20prints) | 14 STL files: SLS rocket, Orion, Soyuz, HTV, Dragon, Cygnus, Canadarm2, Dextre, CubeSat, the OSIRIS-REx spacecraft, an astronaut, RADARSAT and Bennu | Shape references to rebuild with the kit. STL files carry no colour or movement |
+| [Game – RADARSAT Constellation Mission](https://www.asc-csa.gc.ca/eng/satellites/radarsat/activities/game.asp) | The player helps a farmer, a captain and a first responder with satellite imagery (known from its description only) | A structure reference for NPC quests |
+
+CSA terms: its materials, 3D model files included, may be reproduced for
+personal, educational or informational non-commercial use when the CSA is
+credited ("Credit: Canadian Space Agency"), nothing implies its endorsement,
+and neither the CSA logo nor the symbols of the Government of Canada are used.
+Models credited to someone else (the SLS one says "Credit: NASA") carry that
+credit instead.
 
 ---
 
@@ -190,10 +365,10 @@ Exo Space/
 ├── NASA-DATA.md                NASA sources and how to credit them
 ├── README.md                   Public presentation
 ├── prompt-continue-claude.md   To open a new chat with all the context
-├── prompts-world.md            Catalog, planets, loading, dungeons, quests
+├── prompts-world.md            Catalog, planets, map, dungeons, quests, visor, printer, jump, ship
 ├── prompts-characters.md       Modelling kit, player, NPCs and enemies
 ├── prompts-3d-models.md        Style, 3D models and adapting NASA models
-├── reference-models/           Reference sheets and source GLB files
+├── reference-models/           Reference sheets; nasa/ holds 23 NASA models and their sources
 ├── docs/media/                 Screenshots and clips for the README
 ├── video/                      Demo material
 └── web/                        The game
@@ -233,13 +408,22 @@ Exo Space/
 
 ## Build order
 
-1. Base: catalog loaded, pick a planet and land on it.
-2. Real data decides palette, gravity and enemies.
-3. One type of NPC quest.
-4. One dungeon template.
-5. Two or three models adapted from NASA 3D Resources.
-6. A 30-second demo or 7 slides, and the form. Keep Sunday afternoon free for
+1. The home planet, complete: land on TRAPPIST-1 e, suit visor, one quest, one
+   tool printed and used, and its ruin with a relic.
+2. The jump rune and the jump to the second planet, with its ruin.
+3. The final jump: the catalog as a cloud of points and the flight to Earth.
+   It is cheap, it is pure NASA data and it is the best shot for the demo.
+4. Arrival, the satellite and the recording as five stills.
+5. Flying the ship over the planet.
+6. Leaving the planet and flying in space.
+7. The third planet. If there is no time, it can be analysed with the visor
+   but not visited.
+8. Two or three models adapted from NASA 3D Resources.
+9. A 30-second demo or 7 slides, and the form. Keep Sunday afternoon free for
    this.
+
+This is more than fits by Sunday. Steps 1 to 4 are the story from start to
+finish; cut from step 5 down, never the first ones.
 
 Each step has its prompt in `prompts-world.md`, `prompts-characters.md` and
 `prompts-3d-models.md`.

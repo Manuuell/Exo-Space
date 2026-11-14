@@ -85,8 +85,10 @@ them from real data, pending the team's validation:
 | Colour of the star | Colour of the glowing parts |
 | Size class of the planet | Overall size of the fauna |
 
-What the enemies are (creatures, machines, something else) is part of the
-story and still open in `lore-and-mechanics.md`.
+The story has three kinds of opposition (see `lore-and-mechanics.md`, Part 1):
+the fauna of each planet, abandoned machines of earlier expeditions and the
+guardians of ruins. The table above applies to the fauna; machines start from
+real spacecraft and robots, and guardians use the `guardian` type.
 
 ---
 
@@ -193,6 +195,7 @@ Character sheet:
 Create the NPC on the sheet in web/src/models/<id>.ts and register it in the
 CATALOG with type npc.
 
+- It is a person of another species: never human and never hostile.
 - It has to be recognisable from afar on the map: a clear silhouette and
   something that sets it apart from enemies.
 - Clips: Idle (it should look alive: breathing, looking around), Talk and

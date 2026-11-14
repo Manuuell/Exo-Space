@@ -59,6 +59,10 @@ guide requires.
 - **Design:** design decisions are made by the team. AI proposals, such as the
   table that maps planet data to what it changes in the game, are marked as
   proposals in the design document until the team validates them.
+- **Story:** for the foundations of the story (protagonist, opposition and
+  goal), AI proposed starting options and the team chose and combined them.
+  The twist ending, the focus on three planets and the jump across every
+  exoplanet are the team's ideas; AI helped develop and write them up.
 - **Images, video and audio:** none generated with AI so far. Any added later
   will carry a visible watermark (images and video) or an acknowledgment in
   its description and metadata (audio).

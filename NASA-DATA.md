@@ -49,6 +49,35 @@ form, the README and the in-game credits screen.
 
 Add one row for every model as soon as it is adapted.
 
+## A Learning Game About Telescopes
+
+- **What:** NASA's educational game "Build It Yourself: Satellite!", from the
+  James Webb Space Telescope site, and one of the official resources of the
+  challenge. https://science.nasa.gov/mission/webb/game-build-it-yourself/
+- **How we use it:** as the design reference for the suit visor. What the
+  player wants to find out about a planet decides which instruments they
+  need, under limits. We take the idea and the structure, not its text, art
+  or code.
+- **Credit:** NASA.
+
+## Canadian Space Agency (Space Agency Partner)
+
+Not NASA data: these go in the "Space Agency Partner Data and Other
+References" field of the form.
+
+- **What:** the CSA's Digital Games and Activities page, one of the official
+  resources of the challenge.
+  https://www.asc-csa.gc.ca/eng/youth-educators/digital-games-and-activities.asp
+- **How we use it:** the OSIRIS-REx game as a design reference for the suit
+  visor, and the 3D printing models as shape references for models rebuilt in
+  the game's style. Nothing is used yet; add a line here for each item once it
+  is.
+- **Terms:** non-commercial use is allowed when the CSA is acknowledged as the
+  source and nothing implies its endorsement. The CSA logo and the symbols of
+  the Government of Canada may not be used.
+- **Credit line:** `[Item name]. Credit: Canadian Space Agency.` If the item
+  names another owner (for example "Credit: NASA"), use that credit.
+
 ## Rules we follow
 
 - NASA is acknowledged as the source and nothing implies NASA endorses the
