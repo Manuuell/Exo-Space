@@ -1,0 +1,52 @@
+:root {
+  color-scheme: dark;
+  --fondo: #05070d;
+  --texto: #e8eeff;
+  --tenue: #8f9bb8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+#ui h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 9vw, 6rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+#ui p {
+  margin: 0.4em 0 0;
+  font-size: clamp(1rem, 3vw, 1.6rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}

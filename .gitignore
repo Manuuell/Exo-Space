@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Web
+web/node_modules/
+web/dist/
+
+# Secretos y entorno
+.env
+.env.*
+!web/.env.example
+*.key
+*.pem

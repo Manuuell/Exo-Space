@@ -1,0 +1,31 @@
+{
+  "fuente": "NASA Exoplanet Archive",
+  "tabla": "Planetary Systems Composite Parameters (pscomppars)",
+  "doi": "10.26133/NEA13",
+  "url": "https://exoplanetarchive.ipac.caltech.edu/",
+  "consulta": "select pl_name,hostname,sy_pnum,discoverymethod,disc_year,pl_rade,pl_bmasse,pl_dens,pl_eqt,pl_insol,pl_orbper,pl_orbsmax,pl_orbeccen,st_teff,st_rad,st_mass,st_spectype,sy_dist,ra,dec from pscomppars",
+  "descargado": "2026-11-14",
+  "planetas": 6470,
+  "columnas": [
+    "pl_name",
+    "hostname",
+    "sy_pnum",
+    "discoverymethod",
+    "disc_year",
+    "pl_rade",
+    "pl_bmasse",
+    "pl_dens",
+    "pl_eqt",
+    "pl_insol",
+    "pl_orbper",
+    "pl_orbsmax",
+    "pl_orbeccen",
+    "st_teff",
+    "st_rad",
+    "st_mass",
+    "st_spectype",
+    "sy_dist",
+    "ra",
+    "dec"
+  ]
+}
