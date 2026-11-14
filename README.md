@@ -28,7 +28,7 @@ Then open http://127.0.0.1:5173.
 | `npm run dev` | Starts the development server |
 | `npm test` | Runs the tests |
 | `npm run build` | Type-checks and builds to `web/dist/` |
-| `npm run datos` | Downloads a fresh copy of the exoplanet catalog |
+| `npm run data` | Downloads a fresh copy of the exoplanet catalog |
 
 ## NASA data
 
@@ -70,7 +70,10 @@ Keep this section up to date as the project grows.
 | Path | What it holds |
 |---|---|
 | `web/` | The game: Vite, TypeScript and Three.js |
-| `web/public/datos/` | Local copy of the exoplanet catalog |
+| `web/public/data/` | Local copy of the exoplanet catalog |
 | `NASA-DATA.md` | NASA sources and how they are credited |
-| `referencias-modelos/` | Reference sheets and source models |
+| `HANDOFF.md` | Project context: decisions, open questions, hackathon rules |
+| `lore-and-mechanics.md` | Design document |
+| `prompts-*.md` | Build prompts for the world, the characters and the 3D models |
+| `reference-models/` | Reference sheets and source models |
 | `docs/media/` | Screenshots and clips |

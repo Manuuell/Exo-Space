@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite';
 
-// Rutas relativas: el build tiene que abrir desde cualquier carpeta o
-// subdirectorio (GitHub Pages, itch.io), no solo desde la raíz de un dominio.
+// Relative paths: the build has to open from any folder or subdirectory
+// (GitHub Pages, itch.io), not only from the root of a domain.
 export default defineConfig({
   base: './',
-  // Three.js entero ronda los 600 kB sin comprimir (unos 150 kB con gzip):
-  // es lo esperado para un juego 3D, no algo que trocear.
+  // All of Three.js is around 600 kB uncompressed (about 150 kB gzipped):
+  // that is expected for a 3D game, not something to split up.
   build: { chunkSizeWarningLimit: 800 },
   server: { port: 5173, host: '127.0.0.1' },
 });

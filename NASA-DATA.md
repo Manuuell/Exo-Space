@@ -18,9 +18,9 @@ form, the README and the in-game credits screen.
 - **How we use it:** every planet in the game is a planet from this table. Its
   real radius, mass, equilibrium temperature, host star and distance drive how
   the planet looks and plays.
-- **Local copy:** `web/public/datos/exoplanetas.csv`, written by
-  `web/scripts/descargar-exoplanetas.mjs` (run `npm run datos` inside `web/`).
-  The file next to it, `exoplanetas.meta.json`, records the query, the access
+- **Local copy:** `web/public/data/exoplanets.csv`, written by
+  `web/scripts/download-exoplanets.mjs` (run `npm run data` inside `web/`).
+  The file next to it, `exoplanets.meta.json`, records the query, the access
   date and the row count.
 - **Columns kept:** `pl_name`, `hostname`, `sy_pnum`, `discoverymethod`,
   `disc_year`, `pl_rade`, `pl_bmasse`, `pl_dens`, `pl_eqt`, `pl_insol`,
