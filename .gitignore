@@ -4,6 +4,7 @@
 # Web
 web/node_modules/
 web/dist/
+web/dist-site/
 
 # Secrets and environment
 .env

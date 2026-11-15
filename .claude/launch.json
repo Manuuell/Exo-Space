@@ -26,6 +26,25 @@
         "--strictPort"
       ],
       "port": 5183
+    },
+    {
+      "name": "site-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "web",
+        "exec",
+        "--",
+        "vite",
+        "preview",
+        "web",
+        "--outDir",
+        "dist-site",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
+      "port": 4173
     }
   ]
 }
