@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exo Space — Play test</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="markers"></div>
+    <div id="bars"></div>
+    <div id="floaters"></div>
+    <div id="crosshair"></div>
+
+    <!-- Top left: the minimap, and under it the quest being followed. -->
+    <div id="corner">
+      <canvas id="minimap" width="360" height="360"></canvas>
+      <div id="tracker">
+        <p class="quest-title" id="quest-title">Visit the village</p>
+        <p class="quest-goal" id="quest-goal">The folk there have work for you.</p>
+        <div id="quest-list"></div>
+        <p class="counters" id="counters"></p>
+      </div>
+    </div>
+
+    <!-- Top right: the menus. -->
+    <div id="menu">
+      <button type="button" class="round" id="open-map" title="Map (M)"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" /></svg><kbd>M</kbd></button>
+      <button type="button" class="round" id="open-help" title="Controls (H)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7 M12 17h.01" /></svg><kbd>H</kbd></button>
+    </div>
+    <p id="planet"></p>
+
+    <!-- Right: the four weapons, and the ship's hold in the ship. -->
+    <div id="loadout"></div>
+    <div id="cargo" hidden></div>
+
+    <!-- Bottom: health, and the skills. -->
+    <div id="vitals">
+      <span class="level">Lv. 1</span>
+      <div class="health"><div id="health"></div></div>
+      <span id="health-text">100 / 100</span>
+    </div>
+    <div id="skills">
+      <div class="skill" id="skill-e"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="8" /></svg><span class="cool"></span><kbd>E</kbd></div>
+      <div class="skill big" id="skill-q"><svg viewBox="0 0 24 24"><path d="M12 2l2.5 7.5H22l-6 4.5 2.3 7.5L12 17l-6.3 4.5L8 14 2 9.5h7.5z" /></svg><span class="cool"></span><kbd>Q</kbd></div>
+    </div>
+
+    <p id="prompt"></p>
+    <p id="message"></p>
+    <div id="dialog" hidden><h2 id="dialog-who"></h2><p id="dialog-line"></p><p class="small">F to close</p></div>
+    <div id="help" hidden>
+      <h2>On foot</h2>
+      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump, and again in the air to glide</p>
+      <p>Mouse look · <kbd>Click</kbd> shoot · <kbd>Right click</kbd> aim · <kbd>1</kbd>–<kbd>4</kbd> weapon</p>
+      <p><kbd>E</kbd> gravity pulse · <kbd>Q</kbd> starfall, once charged · <kbd>F</kbd> talk, open, board</p>
+      <p><kbd>M</kbd> map: click a lit beacon to travel there</p>
+      <h2>In the ship</h2>
+      <p><kbd>L</kbd> take off, land · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>↑</kbd><kbd>↓</kbd> nose</p>
+      <p><kbd>Space</kbd><kbd>C</kbd> rise, sink · <kbd>Shift</kbd> boost · <kbd>Click</kbd> or <kbd>F</kbd> lasers · <kbd>F</kbd> get out, landed</p>
+      <p>In space: shoot asteroids for ore and crystal, fly through golden motes for solar energy</p>
+    </div>
+
+    <!-- The map of the region. -->
+    <div id="worldmap" hidden>
+      <div class="frame">
+        <canvas id="map-canvas" width="900" height="900"></canvas>
+        <div class="legend">
+          <span style="--tint: #3fbf7f">Village</span>
+          <span style="--tint: #9a5bff">Dungeon</span>
+          <span style="--tint: #2fb8d8">Beacon</span>
+          <span style="--tint: #e8483c">Camp</span>
+          <span style="--tint: #f0a92a">Chest</span>
+          <span style="--tint: #2f7bff">Ship</span>
+        </div>
+        <p class="map-hint">Click a lit beacon to travel there · <kbd>M</kbd> to close</p>
+      </div>
+    </div>
+
+    <div id="bossbar" hidden><p class="name"></p><div class="fill"><div></div></div><p class="numbers"></p></div>
+    <div id="warning" hidden></div>
+    <div id="fade"></div>
+    <div id="start"><button type="button" id="start-button">Click to play</button><p>Mouse look needs the pointer: <kbd>Esc</kbd> gives it back. <kbd>H</kbd> shows the controls, <kbd>M</kbd> the map.</p></div>
+    <script type="module" src="/src/play/main.ts"></script>
+  </body>
+</html>

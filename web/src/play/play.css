@@ -1,0 +1,634 @@
+/* The play test's interface: the usual layout of an action RPG (map and
+   quest top left, menus top right, weapons on the right, health at the
+   bottom, skills bottom right), drawn in the game's own colours. */
+
+:root {
+  --ink: rgb(20 18 34 / 0.62);
+  --ink-solid: #1b1726;
+  --cream: #fff1d6;
+  --gold: #ffc533;
+  --cyan: #63e9ff;
+  --blue: #2f7bff;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #05070d;
+  font: 14px/1.4 system-ui, sans-serif;
+  color: #ffffff;
+  user-select: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+kbd {
+  display: inline-grid;
+  place-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--cream);
+  color: var(--ink-solid);
+  font: 700 11px/1 system-ui, sans-serif;
+  text-shadow: none;
+}
+
+/* --- Top left: minimap and quest --------------------------------------------- */
+
+#corner {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  width: 300px;
+  pointer-events: none;
+}
+
+#minimap {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  display: block;
+}
+
+#tracker {
+  margin-top: 8px;
+}
+
+#tracker p {
+  margin: 0;
+}
+
+.quest-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.quest-title::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border: 2px solid var(--gold);
+  transform: rotate(45deg);
+}
+
+.quest-goal {
+  padding-left: 21px;
+  color: #f3f4fa;
+}
+
+#quest-list {
+  margin-top: 6px;
+  padding-left: 21px;
+  font-size: 12px;
+  color: #dfe3f2;
+}
+
+#quest-list p {
+  margin: 1px 0;
+}
+
+#quest-list .done {
+  color: #5be3a8;
+}
+
+#quest-list .goal {
+  color: var(--gold);
+}
+
+.counters {
+  margin-top: 6px !important;
+  padding-left: 21px;
+  font-size: 12px;
+  color: #dfe3f2;
+}
+
+/* --- Top right: menus ------------------------------------------------------- */
+
+#menu {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 10px;
+}
+
+.round {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgb(255 255 255 / 0.65);
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+
+.round svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.round kbd {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+}
+
+#planet {
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  margin: 0;
+  font-size: 12px;
+  color: #dfe3f2;
+}
+
+/* --- Right: weapons and the ship's hold -------------------------------------------- */
+
+#loadout,
+#cargo {
+  position: fixed;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 8px;
+}
+
+.slot {
+  display: grid;
+  grid-template-columns: auto 34px 18px;
+  align-items: center;
+  gap: 8px;
+  justify-content: end;
+  opacity: 0.75;
+}
+
+.slot .name {
+  font-weight: 600;
+  text-align: right;
+}
+
+.slot .icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.6);
+  background: radial-gradient(circle at 40% 35%, #ffffff 0 12%, var(--tint) 13% 60%, rgb(0 0 0 / 0.25) 61%);
+}
+
+.slot.active {
+  opacity: 1;
+}
+
+.slot.active .icon {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px var(--gold);
+}
+
+.slot.active .name::after {
+  content: ' ◂';
+  color: var(--gold);
+}
+
+#cargo p {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+
+#cargo .goal {
+  color: var(--gold);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+/* --- Bottom: health and skills ---------------------------------------------------- */
+
+#vitals {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.level {
+  color: #dfe3f2;
+}
+
+.health {
+  width: 300px;
+  height: 10px;
+  border-radius: 5px;
+  background: rgb(20 18 34 / 0.7);
+  border: 1px solid rgb(255 255 255 / 0.35);
+  overflow: hidden;
+}
+
+#health {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #7be35b, #b7f06a);
+  transition: width 0.15s;
+}
+
+#skills {
+  position: fixed;
+  right: 24px;
+  bottom: 22px;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.skill {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.7);
+  background: radial-gradient(circle, #3a6fd8, #1d3a8a);
+  display: grid;
+  place-content: center;
+}
+
+.skill.big {
+  width: 78px;
+  height: 78px;
+  background: radial-gradient(circle, #ffb347, #c4561a);
+}
+
+.skill svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.skill.big svg {
+  width: 36px;
+  height: 36px;
+  fill: rgb(255 255 255 / 0.25);
+}
+
+.skill .cool {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(rgb(10 8 20 / 0.7) calc(var(--left, 0) * 1turn), transparent 0);
+}
+
+.skill kbd {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+}
+
+.skill.ready {
+  box-shadow: 0 0 16px #ffd23f;
+}
+
+/* --- In the world: prompts, markers, health bars, damage numbers -------------------------- */
+
+#crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid rgb(255 255 255 / 0.8);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+#prompt {
+  position: fixed;
+  left: 58%;
+  top: 52%;
+  margin: 0;
+  padding: 6px 14px 6px 6px;
+  border-radius: 20px;
+  background: var(--ink);
+  font-weight: 600;
+}
+
+#prompt:empty,
+#message:empty {
+  display: none;
+}
+
+#message {
+  position: fixed;
+  left: 50%;
+  top: 26%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 18px;
+  border-radius: 10px;
+  background: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+#markers,
+#bars,
+#floaters {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgb(20 18 34 / 0.55);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.marker::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  transform: rotate(45deg);
+  background: var(--tint, #fff);
+}
+
+.marker.target {
+  outline: 2px solid var(--gold);
+}
+
+.bar {
+  position: absolute;
+  width: 60px;
+  margin-left: -30px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.bar .fill {
+  height: 5px;
+  border-radius: 3px;
+  background: #3a3550;
+  overflow: hidden;
+}
+
+.bar .fill > div {
+  height: 100%;
+  background: #ff4b3e;
+}
+
+.floater {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 22px;
+  color: #ffe08a;
+  -webkit-text-stroke: 1px #6a2a10;
+  animation: rise 0.9s ease-out forwards;
+}
+
+.floater.big {
+  font-size: 30px;
+  color: #ff9ad8;
+}
+
+@keyframes rise {
+  from { opacity: 1; margin-top: 0; }
+  to { opacity: 0; margin-top: -46px; }
+}
+
+/* --- Dialog and help -------------------------------------------------------------- */
+
+#dialog {
+  position: fixed;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  width: min(620px, 90vw);
+  padding: 14px 20px;
+  border-radius: 14px;
+  background: rgb(20 18 34 / 0.85);
+}
+
+#dialog h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--gold);
+}
+
+#dialog p {
+  margin: 0;
+}
+
+#dialog .small {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #c9cde0;
+}
+
+#help {
+  position: fixed;
+  top: 90px;
+  right: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgb(20 18 34 / 0.85);
+  font-size: 12px;
+  max-width: 420px;
+}
+
+#help h2 {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+#help p {
+  margin: 3px 0;
+}
+
+/* --- The map ----------------------------------------------------------------------- */
+
+#worldmap {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  background: rgb(8 10 20 / 0.7);
+}
+
+#worldmap[hidden] {
+  display: none;
+}
+
+#worldmap .frame {
+  padding: 14px;
+  border-radius: 18px;
+  background: #e9dcc0;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.5);
+  color: #3a2a1a;
+  text-shadow: none;
+}
+
+#map-canvas {
+  width: min(78vh, 86vw);
+  height: min(78vh, 86vw);
+  display: block;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.legend span::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  transform: rotate(45deg);
+  background: var(--tint);
+}
+
+.map-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+/* --- Start ------------------------------------------------------------------------- */
+
+#start {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: rgb(5 7 13 / 0.45);
+}
+
+#start button {
+  padding: 14px 28px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--blue);
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#start[hidden],
+#help[hidden],
+#dialog[hidden],
+#cargo[hidden],
+#loadout[hidden] {
+  display: none;
+}
+
+/* A guardian's health across the top, and the fade between places. */
+#bossbar {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 60vw);
+  text-align: center;
+}
+
+#bossbar[hidden] {
+  display: none;
+}
+
+#bossbar .name {
+  margin: 0 0 4px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+#bossbar .fill {
+  height: 10px;
+  border-radius: 5px;
+  background: rgb(20 18 34 / 0.75);
+  border: 1px solid rgb(255 255 255 / 0.4);
+  overflow: hidden;
+}
+
+#bossbar .fill > div {
+  height: 100%;
+  background: linear-gradient(90deg, #ff2f6d, #ff8b2c);
+  transition: width 0.15s;
+}
+
+#fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s;
+}
+
+#bossbar .numbers {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #ffe0d0;
+}
+
+/* A guardian's attack, named before it lands. */
+#warning {
+  position: fixed;
+  top: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 12px;
+  background: rgb(60 10 20 / 0.85);
+  border: 2px solid #ff4b3e;
+  font-weight: 800;
+  font-size: 18px;
+  max-width: min(640px, 86vw);
+  text-align: center;
+}
+
+#warning[hidden] {
+  display: none;
+}
