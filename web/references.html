@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exo Space — Reference sheets</title>
+  </head>
+  <body class="light">
+    <canvas id="view"></canvas>
+    <div class="panel" id="panel">
+      <h1>Reference sheets</h1>
+      <label>Model <select id="model"></select></label>
+      <label>View <select id="mode"></select></label>
+      <div class="buttons">
+        <button id="save" type="button">Save PNG</button>
+        <a class="button" id="viewer" href="models.html">Model viewer</a>
+      </div>
+      <p class="info" id="info"></p>
+    </div>
+    <script type="module" src="/src/models/viewers/references.ts"></script>
+  </body>
+</html>
