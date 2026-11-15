@@ -8,8 +8,9 @@ way home.
 Built for the NASA Space Apps Challenge 2026, challenge "Space Mission Design
 Game".
 
-> **Status (2026-11-14):** project setup. The web app starts and shows an empty
-> scene; there is no gameplay yet.
+> **Status (2026-11-14):** foundations. The game loads the exoplanet catalog
+> and derives values from it, and the modelling kit and its viewers work;
+> there is no gameplay yet.
 
 ## Run it
 
@@ -30,6 +31,9 @@ Then open http://127.0.0.1:5173.
 | `npm run build` | Type-checks and builds to `web/dist/` |
 | `npm run data` | Downloads a fresh copy of the exoplanet catalog |
 
+For development, with `npm run dev` running, `/models.html` plays each model's
+clips and exports it as GLB, and `/references.html` draws its reference views.
+
 ## NASA data
 
 - **NASA Exoplanet Archive**, Planetary Systems Composite Parameters table
@@ -47,8 +51,9 @@ This project uses AI assistance, disclosed as the NASA Space Apps submission
 guide requires.
 
 - **Tool:** Claude (Anthropic), through Claude Code.
-- **Code:** the starter code in `web/` (scene setup, catalog download script
-  and tests) was generated with AI assistance.
+- **Code:** the code in `web/` (scene setup, catalog download script, catalog
+  reader and derived values, modelling kit, development viewers and tests)
+  was generated with AI assistance.
 - **Data:** the exoplanet catalog is an unmodified copy from the NASA Exoplanet
   Archive. It is not AI-generated.
 - **Documents:** the working documents and build prompts in this repository

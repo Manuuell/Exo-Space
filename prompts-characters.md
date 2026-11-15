@@ -26,8 +26,9 @@ makes them all look like one family and lets the tests check them in Node.
     for lights) and the dark outline, which `part` adds by itself.
   - Colours: the game's `PALETTE`.
 - **Animations:** clips made with `animation(name, duration, tracks)`. Tracks
-  are built with `rot`, `mov` and `scl`, and sampled with `loop` (loops that
-  close by themselves) or `poses` (loose keyframes).
+  are built with `rot`, `mov` and `scl` from `rig(root)`, as offsets from the
+  rest pose, and sampled with `loop` (loops that close by themselves) or
+  `poses` (keys in seconds, eased).
 - **Registry:** every model is added to `CATALOG` in
   `web/src/models/index.ts` with its `type` (`player`, `npc`, `enemy`,
   `guardian`, `prop`).
@@ -57,7 +58,7 @@ only thing the models share. They face +z; origin at ground level.
 | `guardian` | `body`, `weak_point` | `Idle`, `Wake`, `Move`, `Attack`, `Hit`, `Die` |
 
 Triangle budget: 30,000 for the player, 12,000 for an NPC, 8,000 for an enemy,
-40,000 for a guardian.
+30,000 for a guardian or the last boss (team decision, 2026-11-14).
 
 ---
 
@@ -75,8 +76,9 @@ What it does: tool or attack, or which quest it gives
 Where it appears: which kind of planet, map or dungeon
 ```
 
-For enemies and guardians, the planet rules. Starting proposal for deriving
-them from real data, pending the team's validation:
+For enemies and guardians, the planet rules. Table for deriving them from
+real data, validated by the team on 2026-11-14 (in code:
+`web/src/models/fauna.ts`):
 
 | Planet data | What changes in the enemy |
 |---|---|

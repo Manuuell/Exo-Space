@@ -74,9 +74,10 @@ that is not committed or pushed yet.
 1. Read the three documents and tell me in five lines what you understand the
    game to be and what the first build step is.
 
-2. Build the two foundations, each with its own prompt: the catalog reader
-   (Prompt 1 in prompts-world.md) and the modelling kit (Prompt 0 in
-   prompts-characters.md).
+2. Build the catalog reader (Prompt 1 in prompts-world.md). The modelling
+   kit, the characters and the bosses are handled by a separate chat working
+   in web/src/models/: do not write a kit of your own, use what it leaves
+   there, and tell me if you need something from it.
 
 3. Follow the build order at the end of HANDOFF.md, starting with step 1, the
    home planet. Each piece has its prompt in prompts-world.md,

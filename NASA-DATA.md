@@ -46,6 +46,9 @@ form, the README and the in-game credits screen.
 
 | Model | Source file | Credit | What we changed |
 |---|---|---|---|
+| Mars 2020 Perseverance Rover → enemy "Warden Rover" (`web/src/models/enemy-rover.ts`) | `reference-models/nasa/mars-2020-perseverance-rover.glb` | Mars 2020 Perseverance Rover, NASA 3D Resources. Credit: NASA. Adapted by the team; NASA insignia removed. | Rebuilt in voxel blocks from the rover's layout (six wheels on rocker-bogie legs, mast with camera head, front arm, power unit at the back) and turned hostile: one red eye, a drill on the arm, bumper spikes, rust, warning stripes. No insignia or text. Not yet compared side by side with the GLB. |
+| Apollo Lunar Module → sub-boss "Lander Overseer" (`web/src/models/subboss-overseer.ts`) | `reference-models/nasa/apollo-lunar-module.glb` | Apollo Lunar Module, NASA 3D Resources. Credit: NASA. Adapted by the team; NASA insignia removed. | Rebuilt in voxel blocks from the module's layout (gold-foil octagonal descent stage, faceted ascent stage with two windows, docking hatch, dish antenna, thruster quads, four legs with footpads) and turned into a hostile walking machine: the windows glow red like eyes, a claw arm, a red core in the descent engine. No insignia, flags or text. Not yet compared side by side with the GLB. |
+| Ingenuity Mars Helicopter → enemy "Hornet Drone" (`web/src/models/enemy-drone.ts`) | `reference-models/nasa/ingenuity-mars-helicopter.glb` | Ingenuity Mars Helicopter, NASA 3D Resources. Credit: NASA. Adapted by the team; NASA insignia removed. | Rebuilt in voxel blocks from the helicopter's layout (box body with foil, four splayed legs, two counter-rotating rotors on a mast, solar panel on top) and turned hostile: a red eye, a gun under the body, red blade tips, spiked feet. No insignia or text. Not yet compared side by side with the GLB. |
 
 Add one row for every model as soon as it is adapted.
 
@@ -77,6 +80,22 @@ References" field of the form.
   the Government of Canada may not be used.
 - **Credit line:** `[Item name]. Credit: Canadian Space Agency.` If the item
   names another owner (for example "Credit: NASA"), use that credit.
+
+## Other references
+
+Not NASA data: these also go in the "Space Agency Partner Data and Other
+References" field.
+
+- **Three.js** (MIT licence), https://threejs.org: the 3D engine. The kit
+  also uses its add-ons RoundedBoxGeometry, BufferGeometryUtils,
+  OrbitControls and GLTFExporter.
+- **Vite** (MIT licence) and **TypeScript** (Apache 2.0 licence): build tools.
+- **Star colours** (`web/src/data/derived.ts`): Planck's law, the CIE 1931
+  colour matching functions in the analytic fit of C. Wyman, P.-P. Sloan and
+  P. Shirley, "Simple Analytic Approximations to the CIE XYZ Color Matching
+  Functions", *Journal of Computer Graphics Techniques* 2(2), 2013,
+  https://jcgt.org/published/0002/02/01/, and the sRGB standard
+  (IEC 61966-2-1) to turn them into screen colours.
 
 ## Rules we follow
 
