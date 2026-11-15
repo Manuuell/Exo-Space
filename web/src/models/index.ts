@@ -15,6 +15,8 @@ import { twinfang } from './enemy-twinfang.ts';
 import { wyvern } from './enemy-wyvern.ts';
 import { bastion } from './guardian-bastion.ts';
 import { rootmaw } from './guardian-rootmaw.ts';
+import { ashwing } from './guardian-ashwing.ts';
+import { dragonNest } from './prop-dragon-nest.ts';
 import { veilkeeper } from './guardian-veilkeeper.ts';
 import { hero } from './hero.ts';
 import { heroCartoon } from './hero-cartoon.ts';
@@ -38,7 +40,7 @@ import { skyfin } from './fauna-skyfin.ts';
 import { testCube } from './test-cube.ts';
 import { weapons } from './weapons.ts';
 
-export const CATALOG: readonly ModelEntry[] = [heroCartoon, ...weapons, homeward, ruinGate, giantTree, ...worldProps, mossback, puffhop, skyfin, bloomkin, forgeback, lumen, drifter, spineback, golem, twinfang, stinglash, gorgemaw, skyray, wyvern, rover, drone, rootmaw, bastion, veilkeeper, exodus, broodmother, overseer, cinderhermit, frostwyrm, heroExplorer, hero, testCube, kitShapes];
+export const CATALOG: readonly ModelEntry[] = [heroCartoon, ...weapons, homeward, ruinGate, giantTree, dragonNest, ...worldProps, mossback, puffhop, skyfin, bloomkin, forgeback, lumen, drifter, spineback, golem, twinfang, stinglash, gorgemaw, skyray, wyvern, rover, drone, ashwing, rootmaw, bastion, veilkeeper, exodus, broodmother, overseer, cinderhermit, frostwyrm, heroExplorer, hero, testCube, kitShapes];
 
 export function modelById(id: string): ModelEntry | undefined {
   return CATALOG.find((entry) => entry.id === id);

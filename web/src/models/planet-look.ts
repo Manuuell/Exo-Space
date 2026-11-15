@@ -417,6 +417,8 @@ export interface PlanetFeatures {
   shards: Landmark[];
   /** Where packs of enemies roam. */
   packs: Landmark[];
+  /** The dragon's nest: on the highest flat ground near the rim of the valley. */
+  nest: Landmark | null;
 }
 
 /**
@@ -551,7 +553,26 @@ export function planetFeatures(planet: Partial<PlanetLook> & { name?: string }, 
     if (spot) packs.push({ ...spot, yaw: next() * Math.PI * 2 });
   }
 
-  return { gates, giants, herds, village, camps, beacons, chests, shards, packs };
+  // The dragon nests on the highest flat ground it can find near the rim of
+  // the valley, where it sees all of it.
+  let nest: Landmark | null = null;
+  let nestHeight = -Infinity;
+  for (let attempt = 0; attempt < 160; attempt++) {
+    const angle = next() * Math.PI * 2;
+    const reach = 440 + 190 * Math.sqrt(next());
+    const x = Math.sin(angle) * reach;
+    const z = Math.cos(angle) * reach;
+    if (!dry(x, z) || !flat(x, z, 9, 5)) continue;
+    if (taken.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.room + 45)) continue;
+    const h = ground(x, z);
+    if (h > nestHeight) {
+      nestHeight = h;
+      nest = { x, z, yaw: facingHome(x, z) };
+    }
+  }
+  if (nest) taken.push({ x: nest.x, z: nest.z, room: 45 });
+
+  return { gates, giants, herds, village, camps, beacons, chests, shards, packs, nest };
 }
 
 // --- Forests and paths ---------------------------------------------------------

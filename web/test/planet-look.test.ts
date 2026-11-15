@@ -171,6 +171,10 @@ test('the valley is the last place alive: beyond its mountains the land is dead'
   const all = planetFeatures(e);
   assert.equal(dead(0, 0), 0);
   for (const spot of [...all.gates, ...all.camps, ...all.beacons, ...all.chests, ...all.shards, ...all.packs]) assert.equal(dead(spot.x, spot.z), 0);
+  // The dragon's nest is on the high rim of the valley, still inside it.
+  assert.ok(all.nest, 'no nest');
+  assert.equal(dead(all.nest.x, all.nest.z), 0);
+  assert.ok(Math.hypot(all.nest.x, all.nest.z) > 400);
   const forest = forestDensity(e);
   for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
     const [x, z] = [Math.sin(a) * (LAST_VALLEY.outer + 200), Math.cos(a) * (LAST_VALLEY.outer + 200)];

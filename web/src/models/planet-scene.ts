@@ -19,6 +19,7 @@ import type { Flora, FloraKind, PlanetScenery, Prop, PropKind, Species } from '.
 import type { ModelEntry } from './kit.ts';
 import { giantTree } from './prop-giant-tree.ts';
 import { ruinGate } from './prop-ruin-gate.ts';
+import { dragonNest } from './prop-dragon-nest.ts';
 import { mossback } from './fauna-mossback.ts';
 import { puffhop } from './fauna-puffhop.ts';
 import { skyfin } from './fauna-skyfin.ts';
@@ -1197,6 +1198,7 @@ class Landmarks {
     };
     for (const [k, gate] of features.gates.entries()) fix(ruinGate, gate.x, gate.z, gate.yaw, 6000, 'gate', k);
     for (const tree of features.giants) fix(giantTree, tree.x, tree.z, tree.yaw, 12000);
+    if (features.nest) fix(dragonNest, features.nest.x, features.nest.z, features.nest.yaw, 9000, 'nest', 0);
     for (const [k, spot] of features.beacons.entries()) fix(beacon, spot.x, spot.z, spot.yaw, 9000, 'beacon', k);
     for (const [k, spot] of features.chests.entries()) fix(chest, spot.x, spot.z, spot.yaw, 900, 'chest', k);
     for (const camp of features.camps) fix(campfire, camp.x + Math.sin(camp.yaw) * 5, camp.z + Math.cos(camp.yaw) * 5, 0, 1500);
