@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exo Space — Flight test</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="labels"></div>
+    <div class="card" id="planet-card">
+      <h1 id="planet">Loading the catalog…</h1>
+      <p id="real"></p>
+      <p id="derived"></p>
+    </div>
+    <div class="card" id="controls">
+      <h2>Controls (a first proposal)</h2>
+      <p><kbd>L</kbd> take off or land</p>
+      <p><kbd>W</kbd> <kbd>S</kbd> faster, slower · <kbd>Shift</kbd> boost</p>
+      <p><kbd>A</kbd> <kbd>D</kbd> turn · <kbd>↑</kbd> <kbd>↓</kbd> nose up, down</p>
+      <p><kbd>Space</kbd> <kbd>C</kbd> rise, sink</p>
+      <p><kbd>J</kbd> jump to the next planet, from space</p>
+      <p><kbd>R</kbd> earn this planet's rune (stands in for its ruins)</p>
+    </div>
+    <div class="card" id="status">
+      <p id="gauges"></p>
+      <p id="rune"></p>
+    </div>
+    <p id="notice"></p>
+    <div id="flash"></div>
+    <script type="module" src="/src/flight/main.ts"></script>
+  </body>
+</html>

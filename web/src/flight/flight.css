@@ -1,0 +1,111 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #02030a;
+  color: #e8eeff;
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.card {
+  position: fixed;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgb(8 11 22 / 0.72);
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: min(440px, calc(100vw - 32px));
+}
+
+.card h1,
+.card h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.card h2 {
+  font-size: 13px;
+  color: #a9b4d0;
+}
+
+.card p {
+  margin: 0;
+}
+
+#planet-card {
+  top: 16px;
+  left: 16px;
+}
+
+#controls {
+  top: 16px;
+  right: 16px;
+}
+
+#status {
+  bottom: 16px;
+  left: 16px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 5px;
+  border: 1px solid #5a6485;
+  border-radius: 5px;
+  text-align: center;
+  font: inherit;
+  font-size: 12px;
+}
+
+#notice {
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 1px 6px #000;
+}
+
+.body-label {
+  position: fixed;
+  transform: translate(14px, -50%);
+  font-size: 12px;
+  white-space: nowrap;
+  color: #cfd8f5;
+  text-shadow: 0 1px 4px #000;
+  pointer-events: none;
+}
+
+#flash {
+  position: fixed;
+  inset: 0;
+  background: #f4f8ff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  #controls {
+    display: none;
+  }
+}
