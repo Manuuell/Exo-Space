@@ -16,9 +16,9 @@ still missing and where to find it, and why the ship needs it, with the
 planet's real values from the catalog. With everything aboard you leave,
 and the world ends behind you.
 
-> **Status (2026-11-15):** playable prototype at `/play.html`: the last
-> valley of TRAPPIST-1 e, dungeons, the ship, space mining, the task bar
-> and the end.
+> **Status (2026-11-15):** playable prototype, online at
+> **https://exospace.sentralabs.co**: the last valley of TRAPPIST-1 e,
+> dungeons, the ship, space mining, the task bar and the end.
 
 ## Run it
 
@@ -38,6 +38,7 @@ needs and where, H the controls and M the map.
 | `npm run dev` | Starts the development server |
 | `npm test` | Runs the tests |
 | `npm run build` | Type-checks and builds to `web/dist/` |
+| `npm run build:site` | Builds the game for the public site to `web/dist-site/`, with the game as its front page |
 | `npm run data` | Downloads a fresh copy of the exoplanet catalog |
 
 For development, with `npm run dev` running, `/models.html` plays each model's
@@ -82,6 +83,15 @@ guide requires.
   its description and metadata (audio).
 
 Keep this section up to date as the project grows.
+
+## Other references
+
+- **Meta Space** (https://github.com/Manuuell/Meta-Space-, MIT licence, live
+  at https://metaspace.sentralabs.co): an earlier game by the same team. The dragon Ashwing and the way the guardians
+  fight follow the ideas of its bosses: attacks marked on the ground before
+  they land, a flying boss that circles, bombs, breathes and dives and lands
+  to be hurt, and feints and knockback. All of it was written anew for this
+  game; no code or model was copied.
 
 ## Project layout
 

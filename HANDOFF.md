@@ -82,6 +82,124 @@ Keep this section up to date after every step.
 
 ---
 
+## A dragon with a nest, guardians that fight like Meta Space's, temple dungeons (2026-11-15)
+
+The team asked to bring over the bosses of Meta Space and how they fight.
+They also wanted a dragon that flies, attacks every so often, leaves and
+comes back, with a nest on the map, and dungeons that look like dungeons.
+The team chose:
+- to rewrite everything new, taking Meta Space (the team's earlier game,
+  MIT) only as inspiration, credited in the README;
+- that the dragon can be beaten at its nest;
+- dungeons as a ruined temple.
+
+Meta Space's source was read to understand its bosses; none of it was
+copied.
+
+- **Ashwing, the dragon** (`src/models/guardian-ashwing.ts`, new, soft
+  cartoon):
+  - looks: a dusk-indigo body, a golden belly with ember cracks, coral wings
+    13 m across, bone horns, a burning tail tip, and a cyan gem on its brow
+    as its weak point;
+  - 24k triangles, about 4.3 m tall standing;
+  - clips: Idle (perched), Move (wingbeat), Wake, Attack (breath),
+    Attack_slam (landing), Hit and Die.
+- **Its nest** (`src/models/prop-dragon-nest.ts`): a mound of rock with
+  charred logs, embers, three eggs and bones, 11k triangles. It is placed by
+  `planetFeatures` (`nest`) on the highest flat ground near the rim of the
+  valley, about 500 m from the landing site, and replaces the Broodmother as
+  the world boss on the map.
+- **How it fights** (`src/play/main.ts`, "Ashwing"):
+  - It sleeps in its nest. About 75 s into the game, and then every 2–3
+    minutes, it leaves on a raid with a warning. It flies to her and circles
+    16 m up, with its shadow on the ground.
+  - It attacks in turn, each attack marked on the ground first:
+    - bombs dropped on a pass over her (7, or 11 enraged), each with its
+      circle;
+    - fire poured from above in a cone;
+    - a dive along a strip.
+  - In a raid it can only be driven off: 320 damage sends it home, as do
+    four attacks. The bar says "drive it off".
+  - At its nest (within 75 m, or if shot there) it fights to the end:
+    - in the air it takes a third of the damage;
+    - after losing a quarter of its health, or after five attacks, it marks
+      a circle, lands with a slam that throws her back, and stays down 5.5 s
+      taking full damage;
+    - below half health it is enraged;
+    - if she flees or falls, it flies home and heals.
+  - Beaten, it drops 6 crystal and 12 ore, and the raids end.
+- **Guardians fight like Meta Space's golem:**
+  - close by: stamp, breath, charge, leap;
+  - from afar: charge along a strip, rocks thrown where she will be (from
+    her speed), leaps onto her, falling stars.
+  - A stamp or a leap now and then holds a beat longer (a feint), to catch
+    whoever dodges too soon. Every blow throws her back (`knockBack`), and
+    the ground marks can now also be strips.
+- **The dungeons are a ruined temple** (`src/play/dungeon.ts`, same halls
+  and logic):
+  - massive walls of worn stone with crumbled tops, moss and vines;
+  - pilasters with torn crimson banners, and statues of the first colonists
+    in niches;
+  - colonnades with fallen columns and rubble;
+  - a broken roof of beams and slabs, with shafts of light through it;
+  - worn flagstones, a crimson runner and a ring of runes in every hall;
+  - bronze braziers of fire, and arched passages;
+  - stone doors sealed with runes that swing open when a hall is cleared;
+  - in the sanctuary, two seated colossi beside the far portal and a ring
+    of fires.
+
+  Most of the stone is merged into one mesh per material.
+
+Checked: `npx tsc --noEmit`, `npm test` (611 tests), `npm run build` and
+`npm run build:site`, and in the browser:
+- **The raid:** it leaves the nest, flies over and attacks with bombs, fire
+  and a dive, and its bombs hurt her.
+- **At the nest:** it wakes, lands after a quarter of its health and falls
+  with its reward; called off, it heals.
+- **Guardians:** all six of Rootmaw's attacks.
+- **Dungeons:** the three temple halls, with the doors opening.
+
+Deployed to https://exospace.sentralabs.co the same day, and checked there: the nest on the map, no errors.
+
+---
+
+## Online at exospace.sentralabs.co (2026-11-15)
+
+The team asked to put it on the internet like Meta Space, on their server
+(VPS 1). It is live at **https://exospace.sentralabs.co**. It is a static
+site: nginx serves the files, with HTTPS from Let's Encrypt (renewed on its
+own). There is no process or container behind it.
+
+- **Building it:** `npm run build:site` (in `web/`) builds the game into
+  `web/dist-site/`, with `play.html` as its front page `index.html`
+  (`vite.config.ts`, mode `site`). It is about 2.9 MB, the exoplanet
+  catalog included; the code is 856 kB, 241 kB gzipped. `npm run build`
+  still builds the starter scene of `index.html`.
+- **On the server:**
+  - the files are in `/var/www/exospace`, owned by the `ubuntu` user;
+  - the subdomain was made with the server's `sentradns` tool:
+    `sudo sentradns add exospace --tipo estatico --raiz /var/www/exospace --proyecto exo-space`;
+  - `sentradns check exospace` checks DNS, HTTPS and the certificate.
+
+  The wildcard DNS of sentralabs.co already pointed at the server; nothing
+  had to be installed.
+- **Updating it:** run `npm run build:site`, then copy `web/dist-site/` over
+  `/var/www/exospace/` (for example with `rsync -az --delete`). Nothing else
+  needs to change.
+- **Server room:** at the time, 6.8 GB of disk was free (85% used) and
+  about 10 GB of memory; the site takes 2.1 MB.
+- `.claude/launch.json` gains `site-preview`, which serves `dist-site/`
+  locally on port 4173 to check a build before uploading it.
+
+Checked: the build in the local preview, then on the live site:
+- HTTP 200 over HTTPS, and HTTP redirecting to HTTPS;
+- the code served gzipped;
+- the catalog loading (0.82 g on screen);
+- the task bar;
+- no errors in the console.
+
+---
+
 ## The last valley, and the end of the world (2026-11-15)
 
 The team did not like mission control ("no me gusta ese mission control").
