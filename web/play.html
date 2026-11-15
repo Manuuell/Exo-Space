@@ -16,8 +16,8 @@
     <div id="corner">
       <canvas id="minimap" width="360" height="360"></canvas>
       <div id="tracker">
-        <p class="quest-title" id="quest-title">Visit the village</p>
-        <p class="quest-goal" id="quest-goal">The folk there have work for you.</p>
+        <p class="quest-title" id="quest-title">The way home</p>
+        <p class="quest-goal" id="quest-goal">Gather what the ship needs to leave (T).</p>
         <div id="quest-list"></div>
         <p class="counters" id="counters"></p>
       </div>
@@ -53,10 +53,11 @@
       <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump, and again in the air to glide</p>
       <p>Mouse look · <kbd>Click</kbd> shoot · <kbd>Right click</kbd> aim · <kbd>1</kbd>–<kbd>4</kbd> weapon</p>
       <p><kbd>E</kbd> gravity pulse · <kbd>Q</kbd> starfall, once charged · <kbd>F</kbd> talk, open, board</p>
-      <p><kbd>M</kbd> map: click a lit beacon to travel there</p>
+      <p><kbd>M</kbd> map: click a lit beacon to travel there · <kbd>T</kbd> what the ship needs, and where</p>
       <h2>In the ship</h2>
-      <p><kbd>L</kbd> take off, land · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>↑</kbd><kbd>↓</kbd> nose</p>
-      <p><kbd>Space</kbd><kbd>C</kbd> rise, sink · <kbd>Shift</kbd> boost · <kbd>Click</kbd> or <kbd>F</kbd> lasers · <kbd>F</kbd> get out, landed</p>
+      <p><kbd>F</kbd> land and get out · <kbd>L</kbd> take off, land · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>↑</kbd><kbd>↓</kbd> nose</p>
+      <p><kbd>Space</kbd><kbd>C</kbd> rise, sink · <kbd>Shift</kbd> boost · <kbd>Click</kbd> lasers, and <kbd>F</kbd> too in space</p>
+      <p><kbd>J</kbd> in space, with everything aboard: leave TRAPPIST-1 e for good</p>
       <p>In space: shoot asteroids for ore and crystal, fly through golden motes for solar energy</p>
     </div>
 
@@ -78,8 +79,12 @@
 
     <div id="bossbar" hidden><p class="name"></p><div class="fill"><div></div></div><p class="numbers"></p></div>
     <div id="warning" hidden></div>
+    <div id="tasks"></div>
+    <div id="tasks-detail" hidden></div>
+    <p id="caption" hidden></p>
+    <div id="ending" hidden></div>
     <div id="fade"></div>
-    <div id="start"><button type="button" id="start-button">Click to play</button><p>Mouse look needs the pointer: <kbd>Esc</kbd> gives it back. <kbd>H</kbd> shows the controls, <kbd>M</kbd> the map.</p></div>
+    <div id="start"><button type="button" id="start-button">Click to play</button><p>Mouse look needs the pointer: <kbd>Esc</kbd> gives it back. <kbd>H</kbd> shows the controls, <kbd>M</kbd> the map, <kbd>T</kbd> what the ship needs to leave.</p></div>
     <script type="module" src="/src/play/main.ts"></script>
   </body>
 </html>

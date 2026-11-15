@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import { restCamera, stepCamera } from '../content/chase-camera.ts';
-import { NO_INPUT, forward as noseOf, landedAt, stepFlight } from '../content/flight.ts';
+import { NO_INPUT, TUNING as FLIGHT, forward as noseOf, landedAt, stepFlight } from '../content/flight.ts';
 import type { FlightInput, FlightState, FlightWorld } from '../content/flight.ts';
 import { planetPhysics } from '../content/planet-physics.ts';
 import { loadCatalog } from '../data/exoplanets.ts';
@@ -42,6 +42,12 @@ import { overseer } from '../models/subboss-overseer.ts';
 import { chest as chestModel } from '../models/props-world.ts';
 import { buildDungeon } from './dungeon.ts';
 import type { Dungeon } from './dungeon.ts';
+import { endOfTheWorld } from './ending.ts';
+import type { Ending } from './ending.ts';
+import { nextTask, ready, wayHome } from './way-home.ts';
+import type { Progress, Task, TaskId } from './way-home.ts';
+import { distanceLightYears } from '../data/derived.ts';
+import type { Exoplanet } from '../data/exoplanets.ts';
 import './play.css';
 
 // --- Numbers (a first proposal) -------------------------------------------------
@@ -205,6 +211,7 @@ const startScreen = $<HTMLDivElement>('start');
 $<HTMLButtonElement>('start-button').addEventListener('click', () => {
   startScreen.hidden = true;
   canvas.requestPointerLock?.();
+  say('TRAPPIST-1 e is dying. This valley is the last place where anyone can live: gather what the ship needs (T), and take its people home.', 8);
 });
 canvas.addEventListener('click', () => { if (!locked() && mapScreen.hidden) canvas.requestPointerLock?.(); });
 let dragging = false;
@@ -654,7 +661,10 @@ function hurt(enemy: Enemy, damage: number, push: THREE.Vector3, shove = 0, big 
       fallen.set(enemy.camp, (fallen.get(enemy.camp) ?? 0) + 1);
       if (campLeft(enemy.camp) === 0) say('Camp cleared! Its chest is free to open.', 3);
     }
-    if (enemy === worldBoss) say(`${worldBossName} defeated! It dropped a relic fragment.`, 4);
+    if (enemy === worldBoss) {
+      cargo.crystal += 4;
+      say(`${worldBossName} defeated! It dropped 4 crystal.`, 4);
+    }
     return;
   }
   // Shot at, it turns on the shooter.
@@ -1197,10 +1207,129 @@ let mode: 'foot' | 'ship' = 'foot';
 
 const space = spaceField(look.name, 1800);
 scene.add(space.group);
-/** What the ship has gathered, and what the jump drive needs to be repaired. */
+/** What she has gathered (solar in kWh): part of what the ship needs to leave. */
 const cargo = { ore: 0, crystal: 0, solar: 0 };
-const GOAL = { ore: 30, crystal: 6, solar: 100 };
-let repaired = false;
+
+// --- The way home: what the ship needs, gathered all over the valley, and the end --------------
+
+let catalogPlanet: Exoplanet | null = null;
+let tasks: Task[] | null = null;
+const taskList = () => (tasks ??= wayHome(catalogPlanet, { ruins: features.gates.length, beacons: features.beacons.length, folk: quests.length }));
+const taskBar = $<HTMLDivElement>('tasks');
+const taskDetail = $<HTMLDivElement>('tasks-detail');
+const endingScreen = $<HTMLDivElement>('ending');
+const caption = $<HTMLParagraphElement>('caption');
+let allAboard = false;
+let ending: Ending | null = null;
+let over = false;
+
+function progress(): Progress {
+  return {
+    plates: [...delves.values()].filter((delve) => delve.opened).length,
+    ore: cargo.ore,
+    crystal: cargo.crystal,
+    solar: cargo.solar,
+    beacons: found.beacons.size,
+    colonists: quests.filter((quest) => quest.state === 'done').length,
+  };
+}
+
+const TASK_ICONS: Record<TaskId, string> = {
+  plates: '<path d="M12 3l8 4v6c0 4-3.5 7-8 8-4.5-1-8-4-8-8V7z" />',
+  ore: '<path d="M5 14l3-7 7-2 4 6-3 7-8 1z" />',
+  crystal: '<path d="M12 2l6 8-6 12-6-12z M6 10h12" />',
+  solar: '<circle cx="12" cy="12" r="4" /><path d="M12 2v3 M12 19v3 M2 12h3 M19 12h3 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2" />',
+  beacons: '<path d="M12 2v4 M9 6h6 M10 21l1-12h2l1 12 M7 21h10" />',
+  colonists: '<circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6 M15 14.6c3 0 6 2 6 5" />',
+};
+
+/** The bar of what the ship still needs, and its details (T). */
+function updateTaskBar() {
+  const list = taskList();
+  const have = progress();
+  const done = ready(list, have);
+  taskBar.classList.toggle('ready', done);
+  const chips = list.map((task) => {
+    const full = have[task.id] >= task.need;
+    return `<div class="task${full ? ' full' : ''}"><svg viewBox="0 0 24 24">${TASK_ICONS[task.id]}</svg><span>${task.name}</span><b>${full ? '✓' : `${have[task.id]}/${task.need}${task.unit}`}</b></div>`;
+  });
+  taskBar.innerHTML = `<p class="tasks-title">${done ? 'Everything is aboard: fly up to space and press <kbd>J</kbd> to leave' : 'What the ship needs to leave'} · <kbd>T</kbd> where</p><div class="chips">${chips.join('')}</div>`;
+  if (!taskDetail.hidden) {
+    taskDetail.innerHTML = `<h3>The way home</h3><p class="small">TRAPPIST-1 e is dying. This valley is the last place on it where anyone can live, and the fires of the wasteland are closing in.</p>${list.map((task) => {
+      const full = have[task.id] >= task.need;
+      return `<div class="task-row${full ? ' full' : ''}"><h4><svg viewBox="0 0 24 24">${TASK_ICONS[task.id]}</svg>${task.name}<b>${full ? '✓' : `${have[task.id]}/${task.need}${task.unit}`}</b></h4><p class="where">${task.where}</p><p class="why">${task.why}</p></div>`;
+    }).join('')}<p class="small"><kbd>T</kbd> to close</p>`;
+  }
+  if (done && !allAboard) {
+    allAboard = true;
+    say('Everything the ship needs is aboard! Take it up to space and press J to leave TRAPPIST-1 e for good.', 7);
+  }
+}
+
+/** J: leave for good, once everything is aboard and the ship is in space. */
+function leave() {
+  const list = taskList();
+  const missing = nextTask(list, progress());
+  if (missing) say(`Not yet: the ship still needs ${missing.name.toLowerCase()} (${progress()[missing.id]}/${missing.need}). T shows where.`, 3.5);
+  else if (mode !== 'ship') say('Board the ship first, then take it up to space.', 3);
+  else if (flight.mode !== 'space') say('Take the ship up to space first: hold Space to climb.', 3);
+  else startEnding();
+}
+
+function startEnding() {
+  document.body.classList.add('cinematic');
+  taskDetail.hidden = true;
+  hud.help.hidden = true;
+  mapScreen.hidden = true;
+  warn('');
+  fadeScreen.style.transition = 'none';
+  fadeScreen.style.background = '#ffffff';
+  ending = endOfTheWorld({
+    scene, camera, world, ship: ship.model.root,
+    caption: (text) => {
+      caption.textContent = text;
+      caption.hidden = text === '';
+    },
+    whiteout: (amount) => { fadeScreen.style.opacity = String(amount); },
+    onDone: showEnd,
+  });
+}
+
+const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+function showEnd() {
+  over = true;
+  document.exitPointerLock?.();
+  const years = catalogPlanet ? distanceLightYears(catalogPlanet) : null;
+  endingScreen.innerHTML = `<div class="ending-card"><p class="small">TRAPPIST-1 e → Earth${years ? ` · ${years.toFixed(1)} light years` : ''}</p><h2>The end</h2>
+    <p>The last valley of TRAPPIST-1 e is gone, and the planet with it.</p>
+    <p>Everyone it had is aboard, on the way home.</p>
+    <p class="small">${count(Math.max(1, Math.round(seconds / 60)), 'minute')} in the last valley · ${count(found.beacons.size, 'beacon')} lit · ${count(quests.filter((quest) => quest.state === 'done').length, 'colonist')} saved</p>
+    <button type="button" id="play-again">Play again</button></div>`;
+  endingScreen.hidden = false;
+  fadeScreen.style.transition = 'opacity 2s';
+  fadeScreen.style.opacity = '0';
+  $<HTMLButtonElement>('play-again').addEventListener('click', () => location.reload());
+}
+
+/** Out in the wasteland the air burns: she is hurt until she turns back. */
+let scorchTimer = 0;
+let scorchWarned = false;
+function scorch(dt: number) {
+  const burning = mode === 'foot' && place === 'world' && !player.down ? world.wasteland(player.position.x, player.position.z) : 0;
+  if (burning > 0.35) {
+    if (!scorchWarned) warn('⚠ The wasteland burns: nothing can live out here. Turn back to the valley!');
+    scorchWarned = true;
+    scorchTimer -= dt;
+    if (scorchTimer <= 0) {
+      scorchTimer = 0.8;
+      damagePlayer(4 + burning * 6);
+    }
+  } else if (scorchWarned) {
+    warn('');
+    scorchWarned = false;
+    scorchTimer = 0;
+  }
+}
 const LASER_SPEED = 1400;
 const laserLook = new THREE.MeshBasicMaterial({ color: '#7ff7e0' });
 const laserShape = new THREE.CapsuleGeometry(0.35, 7, 2, 6).rotateX(Math.PI / 2);
@@ -1242,7 +1371,8 @@ function breakRock(rock: (typeof space.rocks)[number]) {
 function updateSpace(dt: number, seconds: number) {
   space.update(dt, seconds);
   laserCooldown = Math.max(0, laserCooldown - dt);
-  if (mode === 'ship' && flight.mode !== 'landed' && (firing || held.has('KeyF')) && laserCooldown <= 0) {
+  // F fires too, but only out in space: over the valley it brings her down.
+  if (mode === 'ship' && flight.mode !== 'landed' && (firing || (held.has('KeyF') && flight.mode === 'space')) && laserCooldown <= 0) {
     laserCooldown = 0.16;
     fireLasers();
   }
@@ -1294,18 +1424,22 @@ function updateSpace(dt: number, seconds: number) {
         mote.gone = 25;
         mote.object.visible = false;
         cargo.solar += 10;
-        say(`Solar energy +10 (${cargo.solar})`, 1.2);
+        say(`Solar energy +10 kWh (${cargo.solar})`, 1.2);
       }
     }
   }
-  if (!repaired && cargo.ore >= GOAL.ore && cargo.crystal >= GOAL.crystal && cargo.solar >= GOAL.solar) {
-    repaired = true;
-    say('Jump drive repaired! The way home is open.', 5);
-  }
 }
 
+/**
+ * Asked to land (L) or to get out (F) while flying: the ship comes down on
+ * its own, nose down from high up or from space, then brakes and lands, and
+ * with F she steps out once it is down. Pressing again, climbing or speeding
+ * up calls it off. In space F fires, so only L brings her down from there.
+ */
+let autoLand: 'land' | 'leave' | null = null;
+
 function readFlight(): FlightInput {
-  return {
+  const pilot: FlightInput = {
     ...NO_INPUT,
     throttle: axis(['KeyW'], ['KeyS']),
     turn: axis(['KeyD', 'ArrowRight'], ['KeyA', 'ArrowLeft']),
@@ -1314,6 +1448,18 @@ function readFlight(): FlightInput {
     boost: held.has('ShiftLeft') || held.has('ShiftRight'),
     toggleLanding: pressed.has('KeyL'),
   };
+  if (flight.mode === 'landing' && pressed.has('KeyF')) autoLand = 'leave';
+  if (flight.mode !== 'flight' && flight.mode !== 'space') return pilot;
+  const askF = pressed.has('KeyF') && flight.mode === 'flight';
+  if (pressed.has('KeyL') || askF) autoLand = autoLand ? null : askF ? 'leave' : 'land';
+  if (pilot.lift > 0.5 || pilot.throttle > 0) autoLand = null;
+  if (!autoLand) return { ...pilot, toggleLanding: false };
+  const height = flight.position.y - worldGround(flight.position.x, flight.position.z);
+  const nose = (goal: number) => THREE.MathUtils.clamp((goal - flight.pitch) * 3, -1, 1);
+  if (height > 200) return { ...pilot, pitch: nose(-0.8), throttle: flight.speed < 130 ? 1 : 0, boost: true, lift: -1, toggleLanding: false };
+  const slow = flight.speed <= FLIGHT.landSpeed * 0.9;
+  const low = height <= FLIGHT.landHeight * 0.9;
+  return { ...pilot, pitch: nose(0), throttle: slow ? 0 : -1, lift: low ? 0 : -1, toggleLanding: flight.mode === 'flight' && slow && low };
 }
 
 // --- The open world: what has been found and done -------------------------------------------
@@ -1563,12 +1709,10 @@ function updateQuests() {
     const [done, total] = followed.goal();
     hud.questTitle.textContent = followed.title;
     hud.questGoal.textContent = `${followed.todo} (${done}/${total})`;
-  } else if (quests.every((quest) => quest.state === 'offered')) {
-    hud.questTitle.textContent = 'Visit the village';
-    hud.questGoal.textContent = 'The folk there have work for you.';
   } else {
-    hud.questTitle.textContent = repaired ? 'The way home' : 'Repair the jump drive';
-    hud.questGoal.textContent = repaired ? 'The jump drive is ready.' : 'Take the ship to space: mine asteroids and gather solar energy.';
+    const missing = nextTask(taskList(), progress());
+    hud.questTitle.textContent = 'The way home';
+    hud.questGoal.textContent = missing ? `Next: ${missing.name.toLowerCase()}. ${missing.where}` : 'Everything is aboard: fly up to space and press J.';
   }
   for (const quest of quests) {
     if (quest.state === 'offered' || quest === followed) continue;
@@ -1578,12 +1722,10 @@ function updateQuests() {
       html += `<p>${quest.title} <span class="goal">${done}/${total}</span></p>`;
     }
   }
-  html += repaired
-    ? '<p class="done">✓ Jump drive repaired</p>'
-    : `<p>Jump drive <span class="goal">ore ${Math.min(cargo.ore, GOAL.ore)}/${GOAL.ore} · crystal ${Math.min(cargo.crystal, GOAL.crystal)}/${GOAL.crystal} · solar ${Math.min(cargo.solar, GOAL.solar)}/${GOAL.solar}</span></p>`;
   const waiting = quests.filter((quest) => quest.state === 'offered').length;
-  if (waiting > 0 && waiting < quests.length) html += `<p class="goal">${waiting} more in the village</p>`;
+  if (waiting > 0) html += `<p class="goal">${waiting} ${waiting === quests.length ? 'tasks wait' : 'more'} in the village</p>`;
   hud.questList.innerHTML = html;
+  updateTaskBar();
 }
 
 // --- Markers and the minimap ---------------------------------------------------------------------
@@ -1866,6 +2008,8 @@ const BANDS: readonly [number, string][] = [[-Infinity, '#5fb3e8'], [0, '#b6e08a
  * with a line where they meet, water with its shore, the forests stippled,
  * a soft light from the north-west, and the paths.
  */
+const ASH_ON_MAP = new THREE.Color('#3a2a26');
+const LAVA_ON_MAP = new THREE.Color('#e0501c');
 function drawTerrain(): HTMLCanvasElement {
   const tile = document.createElement('canvas');
   tile.width = MAP_PIXELS;
@@ -1903,6 +2047,9 @@ function drawTerrain(): HTMLCanvasElement {
       // A line where two bands meet: shores, plateaus and cliffs.
       const neighbour = bands[Math.min(MAP_PIXELS - 1, py + 1) * MAP_PIXELS + px] !== band || bands[py * MAP_PIXELS + Math.min(MAP_PIXELS - 1, px + 1)] !== band;
       if (neighbour) tone.lerp(band === 0 || bands[v + 1] === 0 ? shore : edge, 0.55);
+      // Past the last valley: the burning wasteland.
+      const dead = world.wasteland(-MAP_SPAN + px * metre, -MAP_SPAN + py * metre);
+      if (dead > 0) tone.lerp(band === 0 ? LAVA_ON_MAP : ASH_ON_MAP, dead * 0.85);
       const i = v * 4;
       image.data[i] = tone.r * 255;
       image.data[i + 1] = tone.g * 255;
@@ -2110,7 +2257,9 @@ function use(what: Usable) {
     delve.opened = true;
     delve.chest.play('Open', true, true);
     flash(delve.dungeon.chest.clone().setY(1.5), '#ffd23f', 3, 0.6);
-    say(`${DUNGEONS[what.index].name}: a relic of the first colonists, and 200 parts!`, 4);
+    cargo.ore += 10;
+    cargo.crystal += 3;
+    say(`${DUNGEONS[what.index].name}: a hull plate for the ship, 10 ore and 3 crystal!`, 4);
     return;
   }
   if (what.kind === 'folk') {
@@ -2135,8 +2284,11 @@ function use(what: Usable) {
     }
     found.chests.add(what.index);
     world.play('chest', what.index, 'Open', true);
-    const loot = ['40 parts', 'a relic fragment', '25 parts and an ion cell', 'a star map', '60 parts'][what.index % 5];
-    say(`Chest opened: ${loot}!`, 3);
+    // Chests hold what the ship needs.
+    const loot = [{ ore: 5, crystal: 1 }, { ore: 2, crystal: 2 }, { ore: 6, crystal: 0 }, { ore: 3, crystal: 1 }, { ore: 8, crystal: 1 }][what.index % 5];
+    cargo.ore += loot.ore;
+    cargo.crystal += loot.crystal;
+    say(`Chest opened: ${loot.ore} ore${loot.crystal ? ` and ${loot.crystal} crystal` : ''}!`, 3);
   } else {
     mode = 'ship';
     player.gliding = false;
@@ -2287,8 +2439,18 @@ function stepShip(dt: number) {
   const inSpace = flight.mode === 'space';
   if (inSpace && !wasInSpace) say('Space! Click or F fires · mine asteroids · fly through the golden motes', 5);
   wasInSpace = inSpace;
-  hud.prompt.innerHTML = flight.mode === 'landed' ? '<kbd>F</kbd> Get out · <kbd>L</kbd> Take off' : flight.notice;
-  if (flight.mode === 'landed' && pressed.has('KeyF')) {
+  if (flight.mode === 'takeoff') autoLand = null;
+  const PROMPTS: Record<typeof flight.mode, string> = {
+    landed: '<kbd>F</kbd> Get out · <kbd>L</kbd> Take off',
+    takeoff: '',
+    flight: autoLand ? `Coming down to land${autoLand === 'leave' ? ' and get out' : ''}… <kbd>${autoLand === 'leave' ? 'F' : 'L'}</kbd> cancel` : '<kbd>F</kbd> Land and get out · <kbd>L</kbd> Land',
+    landing: autoLand === 'leave' ? 'Landing, then out…' : 'Landing… <kbd>F</kbd> get out once down · <kbd>Space</kbd> pull up',
+    space: autoLand ? 'Going back down to land… <kbd>L</kbd> cancel' : allAboard ? '<kbd>J</kbd> Leave TRAPPIST-1 e for good · <kbd>L</kbd> Go back down' : '<kbd>L</kbd> Go back down and land',
+  };
+  hud.prompt.innerHTML = flight.notice || PROMPTS[flight.mode];
+  const leave = flight.mode === 'landed' && (pressed.has('KeyF') || autoLand === 'leave');
+  if (flight.mode === 'landed') autoLand = null;
+  if (leave) {
     mode = 'foot';
     const side = new THREE.Vector3(-Math.cos(flight.yaw), 0, Math.sin(flight.yaw)).multiplyScalar(7);
     player.position.set(flight.position.x + side.x, 0, flight.position.z + side.z);
@@ -2368,7 +2530,7 @@ function draw(dt: number, seconds: number) {
     return;
   }
 
-  const haze = world.haze(out);
+  const haze = world.haze(out, camera.position.x, camera.position.z);
   scene.background = haze;
   scene.fog = new THREE.Fog(haze, scenery.haze * 0.18, scenery.haze + out * 30_000);
   (stars.material as THREE.PointsMaterial).opacity = out;
@@ -2401,7 +2563,7 @@ function drawHud(dt: number, list: Mark[]) {
   hud.loadout.hidden = mode !== 'foot';
   hud.cargo.hidden = mode === 'foot';
   if (mode === 'ship') {
-    hud.cargo.innerHTML = `<p>Ore ${cargo.ore} <span class="goal">/ ${GOAL.ore}</span></p><p>Crystal ${cargo.crystal} <span class="goal">/ ${GOAL.crystal}</span></p><p>Solar ${cargo.solar} <span class="goal">/ ${GOAL.solar}</span></p><p class="goal">${flight.mode} · ${Math.round(flight.speed)} m/s · ${Math.round(flight.position.y - ground(flight.position.x, flight.position.z))} m up</p>`;
+    hud.cargo.innerHTML = `<p>Ore ${cargo.ore}</p><p>Crystal ${cargo.crystal}</p><p>Solar ${cargo.solar} kWh</p><p class="goal">${flight.mode} · ${Math.round(flight.speed)} m/s · ${Math.round(flight.position.y - ground(flight.position.x, flight.position.z))} m up</p>`;
   }
   hud.skillE.style.setProperty('--left', String(player.pulse / PULSE.cooldown));
   hud.skillQ.style.setProperty('--left', String(1 - player.charge / STARFALL.charge));
@@ -2430,11 +2592,27 @@ let questTimer = 0;
 
 /** One step of the game, `dt` seconds long. */
 function frame(dt: number) {
+  // The end of the world plays out on its own; after it, nothing moves.
+  if (ending) {
+    if (!ending.update(dt)) ending = null;
+    pressed.clear();
+    return;
+  }
+  if (over) {
+    pressed.clear();
+    return;
+  }
   seconds += dt;
+  if (pressed.has('KeyT')) {
+    taskDetail.hidden = !taskDetail.hidden;
+    updateTaskBar();
+  }
+  if (pressed.has('KeyJ')) leave();
   if (pressed.has('KeyH')) hud.help.hidden = !hud.help.hidden;
   if (pressed.has('KeyM')) toggleMap();
   if (mode === 'foot') stepFoot(dt);
   else stepShip(dt);
+  scorch(dt);
   updateShots(dt);
   updateOrbs(dt);
   updateEnemies(dt);
@@ -2461,6 +2639,8 @@ loadCatalog()
     if (!planet) return;
     const physics = planetPhysics(planet);
     flightWorld = { gravity: physics.gravity, ceiling: physics.ceiling, ground: worldGround };
+    catalogPlanet = planet;
+    tasks = null;
     hud.planet.textContent = `${look.name} · ${physics.gravityG?.toFixed(2) ?? '1'} g`;
   })
   .catch(() => undefined);
@@ -2485,7 +2665,11 @@ Object.assign(window, {
     killHall: () => { for (const enemy of here()) if (enemy.health > 0 && (enemy.hall === dungeonOf(place as number).cleared.findIndex((c) => !c))) hurt(enemy, 9999, new THREE.Vector3()); },
     weapon: (k: number) => equip(k),
     get found() { return { shards: found.shards.size, chests: found.chests.size, beacons: found.beacons.size, ruin: found.ruin }; },
-    get cargo() { return { ...cargo, repaired }; },
+    get cargo() { return { ...cargo }; },
+    get tasks() { return { progress: progress(), ready: ready(taskList(), progress()), ending: ending !== null, over }; },
+    leave: () => startEnding(),
+    burn: (amount: number) => world.burn(amount),
+    give: (ore: number, crystal: number, solar: number) => { cargo.ore += ore; cargo.crystal += crystal; cargo.solar += solar; },
     get motes() { return space.motes.filter((mote) => mote.gone <= 0).map((mote) => mote.object.position.toArray().map(Math.round)); },
     get rocks() { return space.rocks.filter((rock) => rock.gone <= 0).map((rock) => ({ at: rock.centre.toArray().map(Math.round), radius: Math.round(rock.radius), health: rock.health })); },
     get quests() { return quests.map((quest) => ({ title: quest.title, state: quest.state, goal: quest.goal() })); },
