@@ -36,7 +36,7 @@ import { chunk, spaceField } from '../models/space-field.ts';
 import type { Material, Pickup } from '../models/space-field.ts';
 import { shotFor, weapons } from '../models/weapons.ts';
 import { rootmaw } from '../models/guardian-rootmaw.ts';
-import { broodmother } from '../models/subboss-broodmother.ts';
+import { ashwing } from '../models/guardian-ashwing.ts';
 import { cinderhermit } from '../models/subboss-cinderhermit.ts';
 import { overseer } from '../models/subboss-overseer.ts';
 import { chest as chestModel } from '../models/props-world.ts';
@@ -257,7 +257,20 @@ const player = {
   cooldown: 0,
   pulse: 0,
   charge: 0,
+  /** A shove from a blow, in m/s, that dies away. */
+  knock: new THREE.Vector3(),
 };
+
+/** A blow throws her back from where it came, and up if `up` > 0. */
+function knockBack(from: THREE.Vector3Like, strength: number, up = 0) {
+  const away = new THREE.Vector3(player.position.x - from.x, 0, player.position.z - from.z);
+  if (away.lengthSq() < 1e-4) away.set(Math.sin(player.facing), 0, Math.cos(player.facing)).negate();
+  player.knock.copy(away.normalize().multiplyScalar(strength));
+  if (up > 0 && player.grounded) {
+    player.velocityY = up;
+    player.grounded = false;
+  }
+}
 
 let weapon: Animated | null = null;
 function equip(index: number) {
@@ -555,6 +568,7 @@ function clearShots() {
   orbs.length = 0;
   // A guardian's marks stay behind with it.
   for (const enemy of enemies) dropPlan(enemy);
+  dragonClear();
   warn('');
 }
 
@@ -647,12 +661,12 @@ function spawn(entry: ModelEntry, x: number, z: number, options: Spawn = {}) {
 
 function hurt(enemy: Enemy, damage: number, push: THREE.Vector3, shove = 0, big = false) {
   if (enemy.health <= 0) return;
-  enemy.health = Math.max(0, enemy.health - damage);
+  enemy.health = Math.max(0, enemy.health - (enemy === worldBoss ? dragonTakes(damage) : damage));
   damageNumber(enemy.centre().setY(enemy.object.position.y + enemy.height + 0.4), damage, big);
   player.charge = Math.min(STARFALL.charge, player.charge + damage * 0.5);
   if (shove > 0 && !enemy.boss) enemy.object.position.addScaledVector(push.clone().setY(0).normalize(), shove * 0.4);
   // A guardian struck wakes up.
-  if (!enemy.awake) wake(enemy);
+  if (!enemy.awake && enemy !== worldBoss) wake(enemy);
   if (enemy.health <= 0) {
     enemy.state = 'dead';
     enemy.timer = 3.5;
@@ -662,8 +676,11 @@ function hurt(enemy: Enemy, damage: number, push: THREE.Vector3, shove = 0, big 
       if (campLeft(enemy.camp) === 0) say('Camp cleared! Its chest is free to open.', 3);
     }
     if (enemy === worldBoss) {
-      cargo.crystal += 4;
-      say(`${worldBossName} defeated! It dropped 4 crystal.`, 4);
+      cargo.crystal += 6;
+      cargo.ore += 12;
+      dragonClear();
+      warn('');
+      say(`${worldBossName} falls! Its hoard: 6 crystal and 12 ore for the ship. The valley's skies are safe.`, 5);
     }
     return;
   }
@@ -699,6 +716,11 @@ function updateEnemies(dt: number) {
     const at = enemy.object.position;
     const toPlayer = new THREE.Vector3(player.position.x - at.x, 0, player.position.z - at.z);
     const distance = toPlayer.length();
+    // The dragon keeps its own time, near or far.
+    if (enemy === worldBoss && enemy.state !== 'dead') {
+      dragonBrain(enemy, dt);
+      continue;
+    }
     // Far away, they wait, and save the work.
     if (distance > 400 && enemy.state !== 'dead') {
       enemy.object.visible = false;
@@ -728,6 +750,13 @@ function updateEnemies(dt: number) {
         dropPlan(enemy);
         warn('');
       }
+      // The dragon falls out of the sky.
+      if (enemy === worldBoss && raid.alt > 0) {
+        enemy.object.visible = true;
+        enemy.body.mixer.update(dt);
+        raid.alt = Math.max(0, raid.alt - 22 * dt);
+        at.y = worldGround(at.x, at.z) + raid.alt;
+      }
       enemy.timer -= dt;
       enemy.bar.hidden = true;
       if (enemy.timer <= 0) {
@@ -746,6 +775,9 @@ function updateEnemies(dt: number) {
     if (enemy.boss && enemy.state !== 'waking') {
       bossBrain(enemy, dt, toPlayer, distance, face, step);
       at.y = enemy.area === 'world' ? worldGround(at.x, at.z) : 0;
+      // A leap goes up and comes down on her.
+      const leap = enemy.plan?.kind === 'leap' ? Math.min(1, enemy.plan.timer / enemy.plan.duration) : 0;
+      if (leap > 0.15) at.y += Math.sin(((leap - 0.15) / 0.85) * Math.PI) * 7;
       continue;
     }
     enemy.shot -= dt;
@@ -868,13 +900,14 @@ world.paths.lines.slice(1).forEach((line, k) => {
   PATROLS[(k / 2) % PATROLS.length].forEach((entry, n) => spawn(entry, x + (n - 0.5) * 7, z + 5));
 });
 if (features.beacons[0]) spawn(skyray, features.beacons[0].x * 0.6, features.beacons[0].z * 0.6);
-const worldBossName = 'Broodmother';
-const worldBossAt = (() => {
+const worldBossName = 'Ashwing';
+const nestSpot = features.nest ?? features.beacons[0];
+const worldBossAt = nestSpot ? { x: nestSpot.x, z: nestSpot.z } : (() => {
   const far = features.camps.reduce((best, camp) => (Math.hypot(camp.x, camp.z) > Math.hypot(best.x, best.z) ? camp : best), features.camps[0]);
   const reach = Math.hypot(far.x, far.z);
   return { x: (far.x / reach) * (reach + 110), z: (far.z / reach) * (reach + 110) };
 })();
-const worldBoss = spawn(broodmother, worldBossAt.x, worldBossAt.z, { boss: true, name: `${worldBossName} · world boss` });
+const worldBoss = spawn(ashwing, worldBossAt.x, worldBossAt.z, { boss: true, name: `${worldBossName} · the dragon` });
 // No patrol or guard wanders into its lair: the fight is one on one.
 for (let i = enemies.length - 1; i >= 0; i--) {
   const enemy = enemies[i];
@@ -887,9 +920,28 @@ for (let i = enemies.length - 1; i >= 0; i--) {
 
 // --- Guardians: attacks shown on the ground before they land ---------------------------------
 
-type Strike = 'cone' | 'ring' | 'rain';
+type Strike = 'cone' | 'ring' | 'rain' | 'charge' | 'leap' | 'rock';
 interface Telegraph { group: THREE.Group; reach: { value: number }; radius: number }
-interface BossPlan { kind: Strike; timer: number; duration: number; telegraphs: Telegraph[]; targets: THREE.Vector3[]; yaw: number }
+interface BossPlan {
+  kind: Strike;
+  timer: number;
+  /** When the mark is full, and when the blow lands: later, if it feints. */
+  fill: number;
+  duration: number;
+  telegraphs: Telegraph[];
+  targets: THREE.Vector3[];
+  yaw: number;
+  /** Where it started, for a leap; a thrown rock in the air. */
+  from: THREE.Vector3;
+  prop: THREE.Object3D | null;
+}
+/** Her speed, to throw rocks where she is going to be. */
+const herVelocity = new THREE.Vector3();
+const herBefore = new THREE.Vector3();
+const CHARGE = { length: 24, width: 3.4 };
+const LEAP_RADIUS = 6;
+const ROCK_RADIUS = 3.2;
+const rockLook = new THREE.MeshToonMaterial({ color: '#6b5a52' });
 
 const CONE = { radius: 15, half: (32 * Math.PI) / 180 };
 const RING_RADIUS = 10;
@@ -900,33 +952,59 @@ function warn(text: string) {
   warning.hidden = text === '';
 }
 
-/** A red mark on the ground where a blow will land, filling up until it does. It lies on the slope. */
-function telegraph(kind: 'circle' | 'cone', at: THREE.Vector3, radius: number, yaw = 0): Telegraph {
-  const rings = 10;
-  const spokes = kind === 'circle' ? 48 : 20;
-  const from = kind === 'circle' ? 0 : yaw - CONE.half;
-  const span = kind === 'circle' ? Math.PI * 2 : 2 * CONE.half;
+/**
+ * A red mark on the ground where a blow will land, filling up from its
+ * origin until it does. It lies on the slope. A circle or a cone of this
+ * radius, or a strip this long and `width` wide, all pointing along `yaw`.
+ */
+function telegraph(kind: 'circle' | 'cone' | 'strip', at: THREE.Vector3, radius: number, yaw = 0, width = 0): Telegraph {
   const base = place === 'world' ? worldGround(at.x, at.z) : 0;
   const lift = (x: number, z: number) => (place === 'world' ? worldGround(at.x + x, at.z + z) - base + 0.3 : 0.06);
-  const positions: number[] = [0, lift(0, 0), 0];
-  const outline: number[] = kind === 'cone' ? [0, lift(0, 0), 0] : [];
-  for (let r = 1; r <= rings; r++) {
-    const d = (radius * r) / rings;
-    for (let k = 0; k <= spokes; k++) {
-      const a = from + (span * k) / spokes;
-      const x = Math.sin(a) * d;
-      const z = Math.cos(a) * d;
-      positions.push(x, lift(x, z), z);
-      if (r === rings) outline.push(x, lift(x, z), z);
-    }
-  }
-  if (kind === 'cone') outline.push(0, lift(0, 0), 0);
+  const positions: number[] = [];
+  const outline: number[] = [];
   const index: number[] = [];
-  const row = spokes + 1;
-  const vertex = (r: number, k: number) => 1 + (r - 1) * row + k;
-  for (let k = 0; k < spokes; k++) index.push(0, vertex(1, k), vertex(1, k + 1));
-  for (let r = 1; r < rings; r++) {
-    for (let k = 0; k < spokes; k++) index.push(vertex(r, k), vertex(r + 1, k), vertex(r, k + 1), vertex(r, k + 1), vertex(r + 1, k), vertex(r + 1, k + 1));
+  if (kind === 'strip') {
+    const rows = 16;
+    const cols = 4;
+    const ahead = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const side = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+    const point = (d: number, w: number) => {
+      const x = ahead.x * d + side.x * w;
+      const z = ahead.z * d + side.z * w;
+      return [x, lift(x, z), z];
+    };
+    for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) positions.push(...point((radius * r) / rows, width * (c / cols - 0.5)));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const v = r * (cols + 1) + c;
+        index.push(v, v + cols + 1, v + 1, v + 1, v + cols + 1, v + cols + 2);
+      }
+    }
+    for (const [d, w] of [[0, -0.5], [1, -0.5], [1, 0.5], [0, 0.5], [0, -0.5]]) outline.push(...point(radius * d, width * w));
+  } else {
+    const rings = 10;
+    const spokes = kind === 'circle' ? 48 : 20;
+    const from = kind === 'circle' ? 0 : yaw - CONE.half;
+    const span = kind === 'circle' ? Math.PI * 2 : 2 * CONE.half;
+    positions.push(0, lift(0, 0), 0);
+    if (kind === 'cone') outline.push(0, lift(0, 0), 0);
+    for (let r = 1; r <= rings; r++) {
+      const d = (radius * r) / rings;
+      for (let k = 0; k <= spokes; k++) {
+        const a = from + (span * k) / spokes;
+        const x = Math.sin(a) * d;
+        const z = Math.cos(a) * d;
+        positions.push(x, lift(x, z), z);
+        if (r === rings) outline.push(x, lift(x, z), z);
+      }
+    }
+    if (kind === 'cone') outline.push(0, lift(0, 0), 0);
+    const row = spokes + 1;
+    const vertex = (r: number, k: number) => 1 + (r - 1) * row + k;
+    for (let k = 0; k < spokes; k++) index.push(0, vertex(1, k), vertex(1, k + 1));
+    for (let r = 1; r < rings; r++) {
+      for (let k = 0; k < spokes; k++) index.push(vertex(r, k), vertex(r + 1, k), vertex(r, k + 1), vertex(r, k + 1), vertex(r + 1, k), vertex(r + 1, k + 1));
+    }
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -986,10 +1064,19 @@ function bossBrain(enemy: Enemy, dt: number, toPlayer: THREE.Vector3, distance: 
   const plan = enemy.plan;
   if (plan) {
     plan.timer += dt;
-    const progress = Math.min(1, plan.timer / plan.duration);
+    const progress = Math.min(1, plan.timer / plan.fill);
     for (const mark of plan.telegraphs) mark.reach.value = mark.radius * Math.max(0.04, progress);
+    // A leap carries it through the air onto her mark; a rock flies at hers.
+    const flight = Math.min(1, plan.timer / plan.duration);
+    if (plan.kind === 'leap') at.lerpVectors(plan.from, plan.targets[0], THREE.MathUtils.smoothstep(flight, 0.15, 1));
+    if (plan.prop) {
+      plan.prop.position.lerpVectors(plan.from, plan.targets[0], flight);
+      plan.prop.position.y = (place === 'world' ? worldGround(plan.prop.position.x, plan.prop.position.z) : 0) + 2 + Math.sin(flight * Math.PI) * 9;
+      plan.prop.rotation.x += dt * 6;
+    }
     if (plan.timer >= plan.duration) {
       strike(enemy, plan);
+      plan.prop?.parent?.remove(plan.prop);
       for (const mark of plan.telegraphs) clearMark(mark);
       enemy.plan = null;
       enemy.next = enemy.enraged ? 1.0 : 1.9;
@@ -1020,14 +1107,20 @@ function bossBrain(enemy: Enemy, dt: number, toPlayer: THREE.Vector3, distance: 
   } else enemy.body.play('Idle');
   if (enemy.next > 0 || !playerNear(enemy, 45)) return;
 
-  // The next attack: in turn, but stars fall on her if she keeps away.
-  const order: Strike[] = ['cone', 'ring', 'rain'];
-  let kind = order[enemy.attacks++ % 3];
-  if (distance > 13 && kind !== 'rain') kind = 'rain';
+  // The next attack, in turn, from those that reach her: close by it stamps
+  // and breathes; from afar it charges, leaps, throws rocks or calls stars.
+  // Like the golem of Meta Space, every one is marked on the ground first.
+  const near: Strike[] = ['ring', 'cone', 'charge', 'ring', 'leap', 'cone'];
+  const far: Strike[] = ['charge', 'rock', 'leap', 'rain', 'rock', 'charge'];
+  const order = distance > 9 ? far : near;
+  const kind = order[enemy.attacks++ % order.length];
   const second = enemy.body.model.clips.find((clip) => clip.name.startsWith('Attack_'))?.name ?? 'Attack';
-  const clip = kind === 'ring' ? 'Attack' : second;
+  const clip = kind === 'ring' || kind === 'leap' ? 'Attack' : second;
   const timing = enemy.body.model.attacks[clip];
-  const duration = Math.max(1.1, timing?.hit ?? 1.2) * (enemy.enraged ? 0.85 : 1);
+  const fill = Math.max(1.1, timing?.hit ?? 1.2) * (enemy.enraged ? 0.85 : 1);
+  // Now and then a stamp or a leap hangs a beat longer: whoever dodges too soon is caught.
+  const feint = (kind === 'ring' || kind === 'leap') && Math.random() < 0.35 ? 0.45 : 0;
+  const duration = fill + feint;
   enemy.body.play(clip, true, true, 0.08);
   const yaw = Math.atan2(toPlayer.x, toPlayer.z);
   enemy.object.rotation.y = yaw;
@@ -1040,6 +1133,20 @@ function bossBrain(enemy: Enemy, dt: number, toPlayer: THREE.Vector3, distance: 
   } else if (kind === 'ring') {
     telegraphs.push(telegraph('circle', at, RING_RADIUS));
     warn(`⚠ ${name}: shockwave! Get away from it`);
+  } else if (kind === 'charge') {
+    telegraphs.push(telegraph('strip', at, CHARGE.length, yaw, CHARGE.width));
+    warn(`⚠ ${name}: it charges! Get off the strip`);
+  } else if (kind === 'leap') {
+    const spot = player.position.clone();
+    targets.push(spot);
+    telegraphs.push(telegraph('circle', spot, LEAP_RADIUS));
+    warn(`⚠ ${name}: it leaps at you! Run`);
+  } else if (kind === 'rock') {
+    // Where she will be when it lands.
+    const spot = player.position.clone().addScaledVector(herVelocity.clone().setY(0), duration * 0.8);
+    targets.push(spot);
+    telegraphs.push(telegraph('circle', spot, ROCK_RADIUS));
+    warn(`⚠ ${name}: it throws a rock! Move`);
   } else {
     const count = enemy.enraged ? 6 : 4;
     for (let k = 0; k < count; k++) {
@@ -1049,7 +1156,13 @@ function bossBrain(enemy: Enemy, dt: number, toPlayer: THREE.Vector3, distance: 
     }
     warn(`⚠ ${name}: falling stars! Keep moving`);
   }
-  enemy.plan = { kind, timer: 0, duration, telegraphs, targets, yaw };
+  let prop: THREE.Object3D | null = null;
+  if (kind === 'rock') {
+    prop = new THREE.Mesh(new THREE.DodecahedronGeometry(1.1, 0), rockLook);
+    prop.position.copy(at).setY(at.y + 3);
+    activeScene().add(prop);
+  }
+  enemy.plan = { kind, timer: 0, fill, duration, telegraphs, targets, yaw, from: at.clone(), prop };
 }
 
 /** The blow lands: whoever is still in the red is hurt. */
@@ -1065,12 +1178,56 @@ function strike(enemy: Enemy, plan: BossPlan) {
       flash(at.clone().add(new THREE.Vector3(Math.sin(a) * d, 1 + Math.random(), Math.cos(a) * d)), k % 2 ? '#ff7a2a' : '#ffd23f', 2 + Math.random() * 2, 0.5);
     }
     const angle = Math.abs(Math.atan2(Math.sin(Math.atan2(toHer.x, toHer.z) - plan.yaw), Math.cos(Math.atan2(toHer.x, toHer.z) - plan.yaw)));
-    if (toHer.length() < CONE.radius && angle < CONE.half) hit(24);
+    if (toHer.length() < CONE.radius && angle < CONE.half) {
+      hit(24);
+      knockBack(at, 6);
+    }
   } else if (plan.kind === 'ring') {
     ring(at.clone().setY(at.y + 0.4), '#ff4b3e', RING_RADIUS, 0.45);
     ring(at.clone().setY(at.y + 1.2), '#ff9a3d', RING_RADIUS * 0.7, 0.55);
     flash(at.clone().setY(at.y + 1), '#ff4b3e', 4, 0.4);
-    if (toHer.length() < RING_RADIUS) hit(22);
+    if (toHer.length() < RING_RADIUS) {
+      hit(22);
+      knockBack(at, 16, 5);
+    }
+  } else if (plan.kind === 'charge') {
+    // It rushes down the strip, as far as the ground lets it.
+    const ahead = new THREE.Vector3(Math.sin(plan.yaw), 0, Math.cos(plan.yaw));
+    const start = at.clone();
+    const sideOf = (point: THREE.Vector3) => {
+      const rel = point.clone().sub(start).setY(0);
+      return { along: rel.dot(ahead), across: Math.abs(rel.x * ahead.z - rel.z * ahead.x) };
+    };
+    const herLine = sideOf(player.position);
+    for (let d = 1; d <= CHARGE.length; d += 1) {
+      const next = start.clone().addScaledVector(ahead, d);
+      const free = enemy.area === 'world' ? worldGround(next.x, next.z) > level + 0.5 : dungeonOf(enemy.area).dungeon.walkable(next.x, next.z);
+      if (!free) break;
+      at.copy(next);
+      if (d % 4 === 0) flash(next.clone().setY(next.y + 1), '#ff9a3d', 2.2, 0.35);
+    }
+    if (herLine.along > -1 && herLine.along < CHARGE.length + 1 && herLine.across < CHARGE.width / 2 + 0.6) {
+      hit(30);
+      knockBack(start, 18, 4);
+    }
+  } else if (plan.kind === 'leap') {
+    const spot = plan.targets[0];
+    ring(at.clone().setY(at.y + 0.4), '#ff4b3e', LEAP_RADIUS, 0.45);
+    flash(at.clone().setY(at.y + 1), '#ff9a3d', 4.5, 0.45);
+    shake = Math.max(shake, 0.7);
+    if (player.position.distanceTo(spot.clone().setY(player.position.y)) < LEAP_RADIUS) {
+      hit(28);
+      knockBack(spot, 16, 6);
+    }
+  } else if (plan.kind === 'rock') {
+    const spot = plan.targets[0];
+    const ground0 = place === 'world' ? worldGround(spot.x, spot.z) : 0;
+    flash(spot.clone().setY(ground0 + 1), '#c9a27a', 3.4, 0.45);
+    ring(spot.clone().setY(ground0 + 0.3), '#ff9a3d', ROCK_RADIUS, 0.4);
+    if (player.position.distanceTo(spot.clone().setY(player.position.y)) < ROCK_RADIUS) {
+      hit(26);
+      knockBack(spot, 12, 3);
+    }
   } else {
     // Overlapping stars hurt once, not once each.
     let caught = false;
@@ -1080,7 +1237,418 @@ function strike(enemy: Enemy, plan: BossPlan) {
       ring(spot.clone().setY(ground0 + 0.3), '#ff8fc4', RAIN_RADIUS, 0.4);
       if (player.position.distanceTo(spot.clone().setY(player.position.y)) < RAIN_RADIUS) caught = true;
     }
-    if (caught) hit(20);
+    if (caught) {
+      hit(20);
+      knockBack(plan.targets[0], 7, 3);
+    }
+  }
+}
+
+// --- Ashwing: the dragon that raids the valley from its nest --------------------------------
+//
+// Its fight follows the flying boss of the team's earlier game, Meta Space,
+// rewritten here: it circles above her and attacks from the air, every blow
+// marked on the ground first: a string of bombs as it passes over, fire
+// poured from above in a cone, a dive along a strip. Every few minutes it
+// leaves its nest to raid her; in the air it can only be driven off. At its
+// nest it fights to the end, and lands now and then, which is when it is
+// hurt the most.
+
+type Flight = 'nest' | 'wake' | 'rise' | 'circle' | 'bombs' | 'breath' | 'dive' | 'landing' | 'landed' | 'home';
+const DRAGON = {
+  firstRaid: 75,
+  raidEvery: [120, 170],
+  orbit: 24,
+  altitude: 16,
+  speed: 22,
+  rest: 1.9,
+  attacksPerRaid: 4,
+  /** Damage that drives it off in a raid. */
+  scare: 320,
+  /** She wakes it in its nest from this close. */
+  nestReach: 75,
+  /** In the air at its nest it takes this share of the damage; landed, all of it. */
+  airDamage: 0.35,
+  bombs: { count: 7, rage: 11, radius: 3, fall: 0.95, damage: 22, pass: 2.6 },
+  breath: { length: 15, damage: 9, tick: 0.3, warn: 0.9, pour: 1.2 },
+  dive: { width: 5.5, length: 46, speed: 38, warn: 0.85, damage: 32 },
+  landing: { radius: 6.5, damage: 26, stay: 5.5, attacks: 5 },
+};
+interface Bomb { mesh: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; t: number; mark: Telegraph }
+const raid = {
+  state: 'nest' as Flight,
+  timer: 0,
+  next: DRAGON.firstRaid,
+  alt: 0,
+  angle: 0,
+  attacks: 0,
+  sinceLanding: 0,
+  attacksSinceLanding: 0,
+  scare: 0,
+  /** Fighting at its nest, to the end, rather than raiding. */
+  home: false,
+  heading: new THREE.Vector3(0, 0, 1),
+  start: new THREE.Vector3(),
+  target: new THREE.Vector3(),
+  dropped: 0,
+  struck: false,
+  tick: 0,
+  marks: [] as Telegraph[],
+  bombs: [] as Bomb[],
+};
+const dragonShadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.35, depthWrite: false }));
+dragonShadow.renderOrder = 4;
+scene.add(dragonShadow);
+const bombLook = new THREE.MeshBasicMaterial({ color: '#ffb347' });
+const bombGlow = new THREE.MeshBasicMaterial({ color: '#ff6a1a', transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false });
+
+function begin(state: Flight) {
+  raid.state = state;
+  raid.timer = 0;
+  raid.struck = false;
+  raid.dropped = 0;
+  raid.tick = 0;
+}
+
+function dragonClear() {
+  for (const mark of raid.marks) clearMark(mark);
+  raid.marks.length = 0;
+  for (const bomb of raid.bombs) {
+    bomb.mesh.parent?.remove(bomb.mesh);
+    clearMark(bomb.mark);
+  }
+  raid.bombs.length = 0;
+}
+
+/** How much of a blow it takes: in a raid none (it is only driven off), in the air at its nest a share. */
+function dragonTakes(damage: number): number {
+  if (raid.state === 'nest') {
+    raid.home = true;
+    worldBoss.awake = true;
+    begin('wake');
+    worldBoss.body.play('Wake', true, true, 0.1);
+    say(`${worldBossName} wakes in its nest!`, 3);
+  }
+  if (!raid.home) {
+    raid.scare += damage;
+    return 0;
+  }
+  const taken = raid.state === 'landed' || raid.state === 'landing' || raid.state === 'wake' ? damage : damage * DRAGON.airDamage;
+  raid.sinceLanding += taken;
+  return taken;
+}
+
+function dragonBrain(enemy: Enemy, dt: number) {
+  const at = enemy.object.position;
+  const her = player.position;
+  const free = mode === 'foot' && !player.down && place === 'world';
+  const rage = enemy.enraged ? 1.25 : 1;
+  const nest = new THREE.Vector3(worldBossAt.x, 0, worldBossAt.z);
+  const fromNest = Math.hypot(her.x - nest.x, her.z - nest.z);
+  const toHer = new THREE.Vector3(her.x - at.x, 0, her.z - at.z);
+  raid.timer += dt;
+  enemy.object.visible = true;
+  enemy.body.mixer.update(dt);
+  enemy.cooldown = Math.max(0, enemy.cooldown - dt);
+
+  const face = (direction: THREE.Vector3Like, rate = 3) => {
+    if (direction.x * direction.x + direction.z * direction.z < 1e-4) return;
+    let turn = Math.atan2(direction.x, direction.z) - enemy.object.rotation.y;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    enemy.object.rotation.y += THREE.MathUtils.clamp(turn, -rate * dt, rate * dt);
+  };
+  const flyTo = (x: number, z: number, altitude: number, speed: number) => {
+    const way = new THREE.Vector3(x - at.x, 0, z - at.z);
+    const length = way.length();
+    if (length > 0.01) at.addScaledVector(way.normalize(), Math.min(length, speed * dt));
+    raid.alt += THREE.MathUtils.clamp(altitude - raid.alt, -14 * dt, 14 * dt);
+    face(way, 4);
+    enemy.body.play('Move');
+    return length;
+  };
+  const groundHere = worldGround(at.x, at.z);
+
+  // The fight at its nest is called off if she leaves or falls: it heals and settles.
+  if (raid.home && raid.state !== 'nest' && raid.state !== 'home' && (!free || fromNest > 160)) {
+    dragonClear();
+    warn('');
+    begin('home');
+  }
+  // A raid ends when she is out of reach.
+  if (!raid.home && !free && raid.state !== 'nest' && raid.state !== 'home') {
+    dragonClear();
+    warn('');
+    begin('home');
+  }
+  // Below half health it is enraged.
+  if (raid.home && !enemy.enraged && enemy.health < enemy.most * 0.5) {
+    enemy.enraged = true;
+    shake = Math.max(shake, 0.6);
+    say(`${worldBossName} is enraged!`, 3);
+  }
+
+  switch (raid.state) {
+    case 'nest': {
+      at.set(nest.x, worldGround(nest.x, nest.z) + 1.2, nest.z);
+      raid.alt = 0;
+      enemy.object.rotation.y = nestSpot?.yaw ?? 0;
+      enemy.body.play('Idle');
+      enemy.awake = false;
+      if (!free) break;
+      if (fromNest < DRAGON.nestReach) {
+        raid.home = true;
+        enemy.awake = true;
+        begin('wake');
+        enemy.body.play('Wake', true, true, 0.1);
+        shake = Math.max(shake, 0.5);
+        say(`${worldBossName} wakes in its nest! Beat it here, and it will never raid again.`, 4);
+        break;
+      }
+      raid.next -= dt;
+      if (raid.next <= 0) {
+        raid.home = false;
+        raid.attacks = 0;
+        raid.scare = 0;
+        enemy.awake = true;
+        begin('rise');
+        warn(`⚠ ${worldBossName} has left its nest: it is coming for you!`);
+        setTimeout(() => { if (warning.textContent?.includes('left its nest')) warn(''); }, 4000);
+      }
+      break;
+    }
+    case 'wake':
+      face(toHer, 2);
+      if (raid.timer > 2.2) begin('rise');
+      break;
+    case 'rise':
+      raid.alt = Math.min(DRAGON.altitude + 8, raid.alt + 9 * dt);
+      enemy.body.play('Move');
+      face(toHer, 2);
+      if (raid.alt >= DRAGON.altitude + 8) begin('circle');
+      break;
+    case 'circle': {
+      // Still far off: it flies to her fast, and does not attack yet.
+      if (toHer.length() > DRAGON.orbit + 14) {
+        raid.angle = Math.atan2(at.z - her.z, at.x - her.x);
+        flyTo(her.x + Math.cos(raid.angle) * DRAGON.orbit, her.z + Math.sin(raid.angle) * DRAGON.orbit, DRAGON.altitude + 6, 50);
+        raid.timer = 0;
+        break;
+      }
+      raid.angle += ((DRAGON.speed * rage) / DRAGON.orbit) * dt;
+      flyTo(her.x + Math.cos(raid.angle) * DRAGON.orbit, her.z + Math.sin(raid.angle) * DRAGON.orbit, DRAGON.altitude, DRAGON.speed * rage * 1.3);
+      face(toHer, 2);
+      if (!raid.home && (raid.attacks >= DRAGON.attacksPerRaid || raid.scare >= DRAGON.scare)) {
+        say(raid.scare >= DRAGON.scare ? `${worldBossName} is driven off! It flies back to its nest… for now.` : `${worldBossName} flies back to its nest. It will be back.`, 4);
+        begin('home');
+        break;
+      }
+      if (raid.home && (raid.sinceLanding >= enemy.most * 0.25 || raid.attacksSinceLanding >= DRAGON.landing.attacks)) {
+        raid.target.set(her.x, 0, her.z);
+        raid.marks.push(telegraph('circle', raid.target, DRAGON.landing.radius));
+        warn(`⚠ ${worldBossName} is landing: get out of the circle!`);
+        begin('landing');
+        break;
+      }
+      if (raid.timer > DRAGON.rest / rage) startDragonAttack(enemy);
+      break;
+    }
+    case 'bombs': {
+      // A straight pass over her, dropping bombs where they will land.
+      const speed = DRAGON.speed * 1.25 * rage;
+      at.addScaledVector(raid.heading, speed * dt);
+      raid.alt += THREE.MathUtils.clamp(DRAGON.altitude * 0.8 - raid.alt, -10 * dt, 10 * dt);
+      face(raid.heading, 5);
+      enemy.body.play('Move');
+      const count = enemy.enraged ? DRAGON.bombs.rage : DRAGON.bombs.count;
+      const every = (DRAGON.bombs.pass - 0.5) / count;
+      while (raid.dropped < count && raid.timer > 0.25 + raid.dropped * every) {
+        raid.dropped++;
+        const drift = speed * DRAGON.bombs.fall * 0.6;
+        const to = at.clone().addScaledVector(raid.heading, drift).add(new THREE.Vector3((Math.random() - 0.5) * 5, 0, (Math.random() - 0.5) * 5));
+        to.y = worldGround(to.x, to.z);
+        const mesh = new THREE.Group();
+        mesh.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), bombLook), new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8), bombGlow));
+        mesh.position.copy(at);
+        scene.add(mesh);
+        raid.bombs.push({ mesh, from: at.clone().setY(at.y - 1), to, t: 0, mark: telegraph('circle', to, DRAGON.bombs.radius) });
+      }
+      if (raid.timer > DRAGON.bombs.pass) endDragonAttack();
+      break;
+    }
+    case 'breath': {
+      // It hovers low behind her, then pours fire down in a cone.
+      if (raid.marks.length === 0) {
+        const back = toHer.lengthSq() > 1 ? toHer.clone().normalize() : new THREE.Vector3(0, 0, 1);
+        const close = flyTo(her.x - back.x * 7, her.z - back.z * 7, 9, DRAGON.speed * rage);
+        if (close < 2 || raid.timer > 2.5) {
+          raid.heading.copy(toHer.lengthSq() > 1 ? toHer.normalize() : back);
+          raid.start.set(at.x, 0, at.z);
+          raid.marks.push(telegraph('cone', raid.start, DRAGON.breath.length, Math.atan2(raid.heading.x, raid.heading.z)));
+          enemy.body.play('Attack', true, true, 0.1);
+          raid.timer = 0;
+        }
+        break;
+      }
+      face(raid.heading, 4);
+      raid.alt += THREE.MathUtils.clamp(9 - raid.alt, -6 * dt, 6 * dt);
+      const warnFor = DRAGON.breath.warn / rage;
+      if (raid.timer < warnFor) {
+        for (const mark of raid.marks) mark.reach.value = mark.radius * Math.max(0.04, raid.timer / warnFor);
+        break;
+      }
+      for (const mark of raid.marks) mark.reach.value = mark.radius;
+      raid.tick -= dt;
+      if (raid.tick <= 0) {
+        raid.tick = DRAGON.breath.tick;
+        const mouth = enemy.object.getObjectByName('breath')?.getWorldPosition(new THREE.Vector3()) ?? at.clone();
+        for (let k = 0; k < 4; k++) {
+          const a = Math.atan2(raid.heading.x, raid.heading.z) + (Math.random() - 0.5) * CONE.half * 1.6;
+          const d = 2 + Math.random() * (DRAGON.breath.length - 3);
+          const spot = raid.start.clone().add(new THREE.Vector3(Math.sin(a) * d, 0, Math.cos(a) * d));
+          spot.y = worldGround(spot.x, spot.z) + 1;
+          flash(mouth.clone().lerp(spot, 0.5 + Math.random() * 0.5), k % 2 ? '#ff7a2a' : '#ffd23f', 2.4 + Math.random() * 1.6, 0.4);
+        }
+        const toHerNow = new THREE.Vector3(her.x - raid.start.x, 0, her.z - raid.start.z);
+        const angle = Math.abs(Math.atan2(Math.sin(Math.atan2(toHerNow.x, toHerNow.z) - Math.atan2(raid.heading.x, raid.heading.z)), Math.cos(Math.atan2(toHerNow.x, toHerNow.z) - Math.atan2(raid.heading.x, raid.heading.z))));
+        if (free && toHerNow.length() < DRAGON.breath.length && angle < CONE.half) damagePlayer(DRAGON.breath.damage * rage);
+      }
+      if (raid.timer > warnFor + DRAGON.breath.pour) endDragonAttack();
+      break;
+    }
+    case 'dive': {
+      const warnFor = DRAGON.dive.warn / rage;
+      if (raid.timer < warnFor) {
+        // Up high, it marks the strip it will dive along.
+        raid.alt += THREE.MathUtils.clamp(DRAGON.altitude + 6 - raid.alt, -10 * dt, 10 * dt);
+        face(raid.heading, 5);
+        enemy.body.play('Move');
+        for (const mark of raid.marks) mark.reach.value = mark.radius * Math.max(0.04, raid.timer / warnFor);
+        break;
+      }
+      at.addScaledVector(raid.heading, DRAGON.dive.speed * rage * dt);
+      raid.alt += THREE.MathUtils.clamp(2.5 - raid.alt, -40 * dt, 40 * dt);
+      const along = new THREE.Vector3(at.x - raid.start.x, 0, at.z - raid.start.z).length();
+      if (!raid.struck && free && Math.hypot(her.x - at.x, her.z - at.z) < 4 && Math.abs(her.y - (groundHere + raid.alt)) < 6) {
+        raid.struck = true;
+        damagePlayer(DRAGON.dive.damage * rage);
+        knockBack(at, 18, 6);
+        shake = Math.max(shake, 0.5);
+      }
+      if (along > DRAGON.dive.length) endDragonAttack();
+      break;
+    }
+    case 'landing': {
+      const landFor = 1.4;
+      const left = flyTo(raid.target.x, raid.target.z, Math.max(0, DRAGON.altitude * (1 - raid.timer / landFor)), DRAGON.speed);
+      for (const mark of raid.marks) mark.reach.value = mark.radius * Math.max(0.04, raid.timer / landFor);
+      if (raid.timer > landFor - 0.9 && enemy.body.current !== 'Attack_slam') enemy.body.play('Attack_slam', true, true, 0.1);
+      if (raid.timer >= landFor && left < 3) {
+        at.set(raid.target.x, at.y, raid.target.z);
+        raid.alt = 0;
+        dragonClear();
+        warn('');
+        shake = Math.max(shake, 0.7);
+        ring(at.clone().setY(groundHere + 0.4), '#ffd0a0', DRAGON.landing.radius, 0.5);
+        flash(at.clone().setY(groundHere + 1), '#ff9a3d', 5, 0.5);
+        if (free && Math.hypot(her.x - at.x, her.z - at.z) < DRAGON.landing.radius) {
+          damagePlayer(DRAGON.landing.damage * rage);
+          knockBack(at, 16, 6);
+        }
+        say(`${worldBossName} has landed: hit it now, it is open!`, 3);
+        raid.sinceLanding = 0;
+        raid.attacksSinceLanding = 0;
+        begin('landed');
+      }
+      break;
+    }
+    case 'landed':
+      raid.alt = 0;
+      face(toHer, 1.5);
+      if (enemy.body.current !== 'Attack_slam' || raid.timer > 1.2) enemy.body.play('Idle');
+      // Too close, and its claws get her.
+      if (free && toHer.length() < enemy.radius * 0.6 && enemy.cooldown <= 0) {
+        enemy.cooldown = 1;
+        damagePlayer(10);
+        knockBack(at, 10);
+      }
+      if (raid.timer >= DRAGON.landing.stay) {
+        say(`${worldBossName} takes off again!`, 2);
+        begin('rise');
+      }
+      break;
+    case 'home': {
+      const left = flyTo(nest.x, nest.z, Math.hypot(at.x - nest.x, at.z - nest.z) > 6 ? 30 : 0, DRAGON.speed * 1.2);
+      if (left < 3) {
+        raid.alt = Math.max(0, raid.alt - 10 * dt);
+        if (raid.alt <= 0.05) {
+          // Back in its nest. A fight called off heals it; the next raid comes later.
+          if (raid.home) {
+            enemy.health = enemy.most;
+            enemy.enraged = false;
+          }
+          raid.home = false;
+          raid.next = DRAGON.raidEvery[0] + Math.random() * (DRAGON.raidEvery[1] - DRAGON.raidEvery[0]);
+          begin('nest');
+        }
+      }
+      break;
+    }
+  }
+  if (raid.state !== 'nest') at.y = worldGround(at.x, at.z) + raid.alt;
+  dragonShadow.visible = raid.alt > 1.5;
+  dragonShadow.position.set(at.x, worldGround(at.x, at.z) + 0.15, at.z);
+  dragonShadow.scale.setScalar(3 + raid.alt * 0.08);
+  updateBombs(dt);
+}
+
+function startDragonAttack(enemy: Enemy) {
+  const her = player.position;
+  const at = enemy.object.position;
+  const order: Flight[] = ['bombs', 'breath', 'dive'];
+  const kind = order[raid.attacks % order.length];
+  raid.attacks++;
+  raid.attacksSinceLanding++;
+  raid.heading.set(her.x - at.x, 0, her.z - at.z);
+  if (raid.heading.lengthSq() < 1) raid.heading.set(0, 0, 1);
+  raid.heading.normalize();
+  if (kind === 'bombs') warn(`⚠ ${worldBossName}: bombs! Get out of the circles`);
+  if (kind === 'breath') warn(`⚠ ${worldBossName}: fire from above! Get out of the cone`);
+  if (kind === 'dive') {
+    raid.start.set(at.x, 0, at.z);
+    raid.marks.push(telegraph('strip', raid.start, DRAGON.dive.length, Math.atan2(raid.heading.x, raid.heading.z), DRAGON.dive.width));
+    warn(`⚠ ${worldBossName}: it dives! Get off the strip`);
+  }
+  begin(kind);
+}
+
+function endDragonAttack() {
+  for (const mark of raid.marks) clearMark(mark);
+  raid.marks.length = 0;
+  warn('');
+  begin('circle');
+}
+
+/** Its bombs fall where their circles are, and burst. */
+function updateBombs(dt: number) {
+  for (let i = raid.bombs.length - 1; i >= 0; i--) {
+    const bomb = raid.bombs[i];
+    bomb.t += dt;
+    const k = Math.min(1, bomb.t / DRAGON.bombs.fall);
+    bomb.mesh.position.copy(bomb.from).lerp(bomb.to, k);
+    bomb.mesh.position.y = bomb.from.y + (bomb.to.y - bomb.from.y) * k * k;
+    bomb.mark.reach.value = bomb.mark.radius * Math.max(0.04, k);
+    if (k >= 1) {
+      flash(bomb.to.clone().setY(bomb.to.y + 1), '#ffb347', 3.2, 0.4);
+      ring(bomb.to.clone().setY(bomb.to.y + 0.3), '#ff8a3a', DRAGON.bombs.radius, 0.35);
+      const her = player.position;
+      if (mode === 'foot' && !player.down && place === 'world' && Math.hypot(her.x - bomb.to.x, her.z - bomb.to.z) < DRAGON.bombs.radius && Math.abs(her.y - bomb.to.y) < 4) {
+        damagePlayer(DRAGON.bombs.damage * (worldBoss.enraged ? 1.15 : 1));
+        knockBack(bomb.to, 7, 3);
+      }
+      bomb.mesh.parent?.remove(bomb.mesh);
+      clearMark(bomb.mark);
+      raid.bombs.splice(i, 1);
+    }
   }
 }
 
@@ -1746,7 +2314,7 @@ function marks(): Mark[] {
   features.camps.forEach((camp, k) => { if (campLeft(k) > 0) mark('camp', 'Camp', spotOf(camp)!, 4); });
   features.chests.forEach((spot, k) => { if (!found.chests.has(k)) mark('chest', 'Chest', spotOf(spot)!, 2); });
   mark('ship', 'Ship', new THREE.Vector3(flight.position.x, flight.position.y, flight.position.z), 5);
-  if (worldBoss.health > 0) mark('boss', 'World boss', worldBoss.object.position.clone(), 7, { always: true });
+  if (worldBoss.health > 0) mark('boss', raid.state === 'nest' ? 'Dragon nest' : 'Ashwing', worldBoss.object.position.clone(), 7, { always: true });
   for (const item of list) if (target && item.at.distanceTo(target) < 3) item.target = true;
   if (target && !list.some((item) => item.target)) mark('quest', active!.title, target, 3, { always: true, target: true });
   return list;
@@ -2131,7 +2699,7 @@ function drawMap() {
   if (worldBoss.health > 0) {
     const [x, y] = onMap(worldBoss.object.position.x, worldBoss.object.position.z);
     badge(mapContext, 'boss', x, y, 18);
-    label(`World boss: ${worldBossName}`, x, y - 30);
+    label(`${worldBossName}'s nest`, x, y - 30);
   }
   const [lx, ly] = onMap(0, 0);
   badge(mapContext, 'ship', ...onMap(flight.position.x, flight.position.z), 13);
@@ -2329,6 +2897,9 @@ function stepFoot(dt: number) {
   const move = new THREE.Vector3();
   if (p.gliding) move.copy(forward()).multiplyScalar(GLIDE).addScaledVector(right(), axis(['KeyD'], ['KeyA']) * 3);
   else if (moving) move.copy(input).normalize().multiplyScalar(running ? RUN : WALK);
+  // A blow's shove, dying away.
+  move.add(p.knock);
+  p.knock.multiplyScalar(Math.max(0, 1 - dt * 5));
   if (move.lengthSq() > 0) {
     const step = move.clone().multiplyScalar(dt);
     const next = p.position.clone().add(step);
@@ -2550,9 +3121,10 @@ function drawBossBar() {
   const boss = here().find((enemy) => enemy.boss && enemy.awake && enemy.health > 0 && enemy.object.position.distanceTo(player.position) < 70);
   bossBar.hidden = !boss;
   if (!boss) return;
-  bossBar.querySelector('.name')!.textContent = `${boss.bar.firstElementChild?.textContent ?? boss.entry.name}${boss.enraged ? ' — enraged' : ''}`;
-  bossBar.querySelector('.numbers')!.textContent = `${Math.ceil(boss.health)} / ${boss.most}`;
-  (bossBar.querySelector('.fill > div') as HTMLDivElement).style.width = `${(boss.health / boss.most) * 100}%`;
+  const raiding = boss === worldBoss && !raid.home;
+  bossBar.querySelector('.name')!.textContent = `${boss.bar.firstElementChild?.textContent ?? boss.entry.name}${raiding ? ' — drive it off' : boss.enraged ? ' — enraged' : ''}`;
+  bossBar.querySelector('.numbers')!.textContent = raiding ? `${Math.round(Math.min(raid.scare, DRAGON.scare))} / ${DRAGON.scare} to drive it off · beat it at its nest` : `${Math.ceil(boss.health)} / ${boss.most}`;
+  (bossBar.querySelector('.fill > div') as HTMLDivElement).style.width = `${(raiding ? 1 - Math.min(1, raid.scare / DRAGON.scare) : boss.health / boss.most) * 100}%`;
 }
 
 function drawHud(dt: number, list: Mark[]) {
@@ -2603,6 +3175,11 @@ function frame(dt: number) {
     return;
   }
   seconds += dt;
+  if (dt > 0) {
+    herVelocity.copy(player.position).sub(herBefore).divideScalar(dt);
+    if (herVelocity.lengthSq() > 400) herVelocity.set(0, 0, 0);
+    herBefore.copy(player.position);
+  }
   if (pressed.has('KeyT')) {
     taskDetail.hidden = !taskDetail.hidden;
     updateTaskBar();
@@ -2666,6 +3243,8 @@ Object.assign(window, {
     weapon: (k: number) => equip(k),
     get found() { return { shards: found.shards.size, chests: found.chests.size, beacons: found.beacons.size, ruin: found.ruin }; },
     get cargo() { return { ...cargo }; },
+    get dragon() { return { state: raid.state, alt: Math.round(raid.alt), home: raid.home, scare: Math.round(raid.scare), next: Math.round(raid.next), health: Math.round(worldBoss.health), at: worldBoss.object.position.toArray().map(Math.round), nest: worldBossAt }; },
+    raidNow: () => { raid.next = 0; },
     get tasks() { return { progress: progress(), ready: ready(taskList(), progress()), ending: ending !== null, over }; },
     leave: () => startEnding(),
     burn: (amount: number) => world.burn(amount),
