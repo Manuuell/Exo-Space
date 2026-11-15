@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { TRAPPIST_1 } from '../src/models/contract.ts';
-import { LANDING_FLAT, floraInCell, landWeights, planetFeatures, planetGround, planetScenery, propsInCell } from '../src/models/planet-look.ts';
+import { LANDING_FLAT, floraInCell, landWeights, planetFeatures, planetGround, planetScenery, propsInCell, wasteland, LAST_VALLEY } from '../src/models/planet-look.ts';
 
 const { e, b, h } = TRAPPIST_1;
 
@@ -163,4 +163,21 @@ test('paths join the landing site to the village and every place to go; forests 
   for (let i = 0; i < 400; i++) if (forest((i % 20) * 60 - 600, Math.floor(i / 20) * 60 - 600) > 0.3) wooded++;
   assert.ok(wooded > 40, `only ${wooded} of 400 points are wooded`);
   assert.equal(forestDensity(b)(500, 500), 0);
+});
+
+test('the valley is the last place alive: beyond its mountains the land is dead', async () => {
+  const { forestDensity, FLORA_CELL } = await import('../src/models/planet-look.ts');
+  const dead = wasteland(e);
+  const all = planetFeatures(e);
+  assert.equal(dead(0, 0), 0);
+  for (const spot of [...all.gates, ...all.camps, ...all.beacons, ...all.chests, ...all.shards, ...all.packs]) assert.equal(dead(spot.x, spot.z), 0);
+  const forest = forestDensity(e);
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+    const [x, z] = [Math.sin(a) * (LAST_VALLEY.outer + 200), Math.cos(a) * (LAST_VALLEY.outer + 200)];
+    assert.equal(dead(x, z), 1);
+    assert.equal(forest(x, z), 0);
+    const ci = Math.floor(x / FLORA_CELL);
+    const ck = Math.floor(z / FLORA_CELL);
+    assert.ok(floraInCell(e, ci, ck).every((plant) => dead(plant.x, plant.z) <= 0.25));
+  }
 });

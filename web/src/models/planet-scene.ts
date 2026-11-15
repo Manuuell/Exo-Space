@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { PlanetLook } from './contract.ts';
-import { FLORA_CELL, PROP_CELL, fbm, floraInCell, forestDensity, hash2, mix, nameSeed, planetFeatures, planetGround, planetPaths, planetScenery, propsInCell } from './planet-look.ts';
+import { FLORA_CELL, LAST_VALLEY, PROP_CELL, fbm, floraInCell, forestDensity, hash2, mix, nameSeed, planetFeatures, planetGround, planetPaths, planetScenery, propsInCell, wasteland } from './planet-look.ts';
 import type { PlanetPaths } from './planet-look.ts';
 import type { Flora, FloraKind, PlanetScenery, Prop, PropKind, Species } from './planet-look.ts';
 import type { ModelEntry } from './kit.ts';
@@ -51,6 +51,12 @@ const SUNK = 160;
 const rimSink = (fromMiddle: number) => smooth(0.66, 0.97, fromMiddle);
 
 const colour = (hex: string) => new THREE.Color(hex);
+/** The dead land beyond the last valley: ash, and embers in its cracks. */
+const ASH_LOW = colour('#2c201d');
+const ASH_HIGH = colour('#15100f');
+const ASH = new THREE.Color();
+const EMBER = colour('#ff6a26');
+const SMOKE = colour('#5a2a1c');
 function smooth(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
@@ -206,9 +212,11 @@ class LandPatch {
   private readonly seed: number;
   private readonly options: PatchOptions;
   private readonly grain = 0.05;
+  private readonly dead: (x: number, z: number) => number;
 
-  constructor(ground: (x: number, z: number) => number, scenery: PlanetScenery, seed: number, radius: { value: number }, options: PatchOptions) {
+  constructor(ground: (x: number, z: number) => number, scenery: PlanetScenery, seed: number, radius: { value: number }, options: PatchOptions, dead: (x: number, z: number) => number) {
     this.ground = ground;
+    this.dead = dead;
     this.scenery = scenery;
     this.seed = seed;
     this.options = options;
@@ -263,6 +271,14 @@ class LandPatch {
         tone.lerp(tones.peak, smooth(relief * 2.2, relief * 3.0, height));
         tone.lerp(tones.rock, smooth(0.35, 0.8, slope));
         tone.lerp(shore, 1 - smooth(level + 1, level + 6, height));
+        // Beyond the last valley the land is ash, split by glowing cracks.
+        const burnt = Math.hypot(wx, wz) < LAST_VALLEY.inner - 130 ? 0 : this.dead(wx, wz);
+        if (burnt > 0) {
+          tone.lerp(ASH.copy(ASH_LOW).lerp(ASH_HIGH, smooth(0, relief * 2, height)), burnt * 0.93);
+          const crack = Math.max(1 - smooth(0.01, 0.05, Math.abs(fbm(wx / 110, wz / 110, this.seed + 71, 2))), (1 - smooth(0.005, 0.03, Math.abs(fbm(wx / 37, wz / 37, this.seed + 73, 2)))) * 0.6);
+          const speck = hash2(Math.round(wx / 16) + 7, Math.round(wz / 16) - 3, this.seed) > 0.95 ? 0.5 : 0;
+          tone.lerp(EMBER, Math.max(crack, speck) * burnt * 0.95);
+        }
         // A little grain, so the land reads.
         tone.multiplyScalar(1 - this.grain / 2 + this.grain * hash2(Math.round(wx / 16), Math.round(wz / 16), this.seed));
         colours.setXYZ(v, tone.r, tone.g, tone.b);
@@ -553,8 +569,10 @@ class CloudField {
   constructor(scenery: PlanetScenery, seed: number, radius: { value: number }) {
     this.seed = seed + 5113;
     this.height = scenery.relief * 3 + 420;
-    const tone = mix(mix('#ffffff', scenery.sky.horizon, 0.06), mix('#4a3330', scenery.sky.horizon, 0.3), scenery.weights.lava);
+    // A dying world: even the clouds are grey with ash.
+    const tone = mix(mix(mix('#ffffff', scenery.sky.horizon, 0.06), mix('#4a3330', scenery.sky.horizon, 0.3), scenery.weights.lava), '#8a7672', 0.5);
     this.mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 16, 12), paint(radius, { colour: tone, rim: 0.55 }), CLOUD_CAPACITY);
+    this.mesh.name = 'clouds';
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
   }
@@ -1018,11 +1036,13 @@ class GrassField {
   private readonly tones: THREE.Color[];
 
   private readonly paths: PlanetPaths;
+  private readonly dead: (x: number, z: number) => number;
 
-  constructor(ground: (x: number, z: number) => number, scenery: PlanetScenery, seed: number, radius: { value: number }, paths: PlanetPaths) {
+  constructor(ground: (x: number, z: number) => number, scenery: PlanetScenery, seed: number, radius: { value: number }, paths: PlanetPaths, dead: (x: number, z: number) => number) {
     this.ground = ground;
     this.scenery = scenery;
     this.paths = paths;
+    this.dead = dead;
     this.seed = seed + 707;
     const material = curved(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: SOFT_RAMP, side: THREE.DoubleSide }), radius, 0.25, 0, this.wind);
     this.mesh = new THREE.InstancedMesh(grassClump(), material, GRASS_CAPACITY);
@@ -1081,7 +1101,9 @@ class GrassField {
         const px = (i + hash2(i, k, this.seed) - 0.5) * GRASS_STEP;
         const pz = (k + hash2(k, i, this.seed + 1) - 0.5) * GRASS_STEP;
         const distance = Math.hypot(px - x, pz - z);
-        if (distance > GRASS_RADIUS || Math.hypot(px, pz) < 17) continue;
+        const fromHome = Math.hypot(px, pz);
+        if (distance > GRASS_RADIUS || fromHome < 17) continue;
+        if (fromHome > LAST_VALLEY.inner - 130 && this.dead(px, pz) > 0.25) continue;
         const [h, slope] = surface(px, pz);
         if (h < level + 0.8 || slope > 0.9 || this.paths.distance(px, pz) < 2.8) continue;
         const r = hash2(i * 3, k * 7, this.seed + 2);
@@ -1264,14 +1286,21 @@ function skyDome(scenery: PlanetScenery): THREE.Mesh {
       horizon: { value: colour(scenery.sky.horizon) },
       space: { value: colour(scenery.sky.space) },
       airOut: { value: 0 },
+      ember: { value: colour('#ff5a2a') },
+      burn: { value: 0 },
     },
     vertexShader: 'varying vec3 vDirection; void main() { vDirection = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `
 uniform vec3 zenith; uniform vec3 horizon; uniform vec3 space; uniform float airOut;
+uniform vec3 ember; uniform float burn;
 varying vec3 vDirection;
 void main() {
   float up = clamp(vDirection.y, -1.0, 1.0);
   vec3 air = mix(horizon, zenith, pow(smoothstep(-0.05, 0.75, up), 0.7));
+  // All around, past the mountains, the world is burning: the horizon glows.
+  air = mix(air, ember, (1.0 - smoothstep(-0.04, 0.3, up)) * 0.6);
+  // And at the end the whole sky does.
+  air = mix(air, mix(ember, vec3(0.16, 0.04, 0.03), smoothstep(-0.1, 0.8, up)), burn);
   // Climbing out, the air thins to space from the top down.
   float thin = clamp(airOut * 1.6 - (1.0 - smoothstep(-0.25, 0.4, up)) * (1.0 - airOut) * 0.9, 0.0, 1.0);
   gl_FragColor = vec4(mix(air, space, thin), 1.0);
@@ -1305,10 +1334,15 @@ function globe(scenery: PlanetScenery, seed: number): THREE.Group {
     tone.copy(tones.low).lerp(tones.high, smooth(0.02, 0.32, height)).lerp(tones.peak, smooth(0.38, 0.5, height));
     tone.lerp(shore, 1 - smooth(-0.06, -0.02, height));
     tone.lerp(tones.liquid, 1 - smooth(-0.1, -0.07, height));
+    // The whole planet is burnt but for the last valley, at the top.
+    const alive = smooth(Math.cos(0.13), Math.cos(0.06), point.y);
+    const crack = 1 - smooth(0, 0.07, Math.abs(fbm(point.x * 7 + point.y * 3, point.z * 7 - point.y * 2, seed + 71, 3)));
+    const dead = ASH.copy(ASH_LOW).lerp(ASH_HIGH, smooth(-0.1, 0.4, height)).lerp(EMBER, crack * 0.85);
+    tone.lerp(dead, 1 - alive);
     colours.set([tone.r, tone.g, tone.b], v * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  const glowing = scenery.liquid.glows ? mix(scenery.liquid.colour, '#000000', 0.85) : '#000000';
+  const glowing = scenery.liquid.glows ? mix(scenery.liquid.colour, '#000000', 0.85) : '#2a0a02';
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: SOFT_RAMP, fog: false, emissive: glowing });
   const ball = new THREE.Mesh(geometry, material);
   const air = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.018, 64, 32), new THREE.ShaderMaterial({
@@ -1327,6 +1361,85 @@ function globe(scenery: PlanetScenery, seed: number): THREE.Group {
   air.frustumCulled = false;
   group.add(ball, air);
   return group;
+}
+
+// --- The wasteland: seas of lava and columns of smoke -----------------------------------
+
+/** Past the valley, the low ground has turned to lava: a glowing sheet over the water. */
+function lavaSea(scenery: PlanetScenery, radius: { value: number }): THREE.Mesh {
+  const geometry = new THREE.RingGeometry(LAST_VALLEY.inner + 60, HALF - 1200, 120, 6).rotateX(-Math.PI / 2);
+  const sea = new THREE.Mesh(geometry, paint(radius, { colour: '#ff5a1f', emissive: '#ff3a0c', emissiveIntensity: 0.85, rim: 0.3 }));
+  sea.name = 'lava-sea';
+  sea.position.y = scenery.liquid.level + 0.4;
+  sea.frustumCulled = false;
+  return sea;
+}
+
+const PLUMES = { wasteland: 120, valley: 36, puffs: 7, rise: 420 };
+
+/**
+ * Columns of smoke over the burning land, each over a glowing fire. Those in
+ * the valley only show when it burns too, at the end.
+ */
+class SmokeField {
+  readonly group = new THREE.Group();
+  private readonly smoke: THREE.InstancedMesh;
+  private readonly fires: THREE.InstancedMesh;
+  private readonly spots: { x: number; y: number; z: number; size: number; phase: number; valley: boolean }[] = [];
+  private burning = 0;
+
+  constructor(ground: (x: number, z: number) => number, scenery: PlanetScenery, seed: number, radius: { value: number }) {
+    const level = scenery.liquid.level;
+    let n = 0;
+    const next = () => hash2(n * 31, n++ * 17, seed + 919);
+    const add = (count: number, near: number, far: number, valley: boolean) => {
+      for (let k = 0; k < count; k++) {
+        const angle = next() * Math.PI * 2;
+        const reach = near + (far - near) * Math.sqrt(next());
+        const x = Math.sin(angle) * reach;
+        const z = Math.cos(angle) * reach;
+        this.spots.push({ x, y: Math.max(level, ground(x, z)), z, size: 0.6 + next() * 0.9, phase: next(), valley });
+      }
+    };
+    add(PLUMES.wasteland, LAST_VALLEY.outer - 20, HALF - 1800, false);
+    add(PLUMES.valley, 90, LAST_VALLEY.inner - 120, true);
+    const count = this.spots.length;
+    this.smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), paint(radius, { colour: '#4a3c3a', opacity: 0.62, rim: 0.15 }), count * PLUMES.puffs);
+    this.fires = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), paint(radius, { colour: '#ff7a2a', emissive: '#ff5a1a', emissiveIntensity: 1, rim: 0 }), count);
+    for (const mesh of [this.smoke, this.fires]) {
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+    }
+    const tint = new THREE.Color();
+    for (let i = 0; i < count * PLUMES.puffs; i++) this.smoke.setColorAt(i, tint.setScalar(0.55 + 0.45 * hash2(i, 3, seed)));
+  }
+
+  /** How much the valley burns too, from 0 to 1. */
+  burn(amount: number): void {
+    this.burning = amount;
+  }
+
+  update(seconds: number): void {
+    const matrix = new THREE.Matrix4();
+    const place = new THREE.Vector3();
+    const turn = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    this.spots.forEach((spot, k) => {
+      const shown = spot.valley ? this.burning : 1;
+      for (let p = 0; p < PLUMES.puffs; p++) {
+        const t = (seconds * 0.05 + spot.phase + p / PLUMES.puffs) % 1;
+        const size = (20 + t * 95) * spot.size * shown;
+        place.set(spot.x + Math.sin(t * 5 + k) * 12 * t, spot.y + 10 + t * PLUMES.rise * spot.size, spot.z + t * 40);
+        matrix.compose(place, turn, scale.setScalar(Math.max(0.001, size * (1 - t * 0.35))));
+        this.smoke.setMatrixAt(k * PLUMES.puffs + p, matrix);
+      }
+      const flicker = (0.85 + 0.25 * Math.sin(seconds * 7 + k * 1.7)) * 26 * spot.size * shown;
+      matrix.compose(place.set(spot.x, spot.y + 2, spot.z), turn, scale.set(flicker * 1.6, Math.max(0.001, flicker * 0.7), flicker * 1.6));
+      this.fires.setMatrixAt(k, matrix);
+    });
+    this.smoke.instanceMatrix.needsUpdate = true;
+    this.fires.instanceMatrix.needsUpdate = true;
+  }
 }
 
 // --- All of it -------------------------------------------------------------------
@@ -1349,8 +1462,8 @@ export interface PlanetWorld {
    * space the ship is (0 on the ground, 1 at the ceiling) and the time.
    */
   update(camera: THREE.Camera, ship: THREE.Vector3Like, out: number, seconds: number): void;
-  /** The colour of the air where the camera is: for the fog and the background. */
-  haze(out: number): THREE.Color;
+  /** The colour of the air where the camera is: for the fog and the background. Out in the wasteland it is smoke. */
+  haze(out: number, x?: number, z?: number): THREE.Color;
   /** Where the dungeons, the village, the camps, the beacons, the chests and the shards are. */
   features: PlanetFeatures;
   /** The dirt paths between them. */
@@ -1363,6 +1476,14 @@ export interface PlanetWorld {
   item(kind: string, index: number): THREE.Object3D | undefined;
   /** Plays a clip on a placed thing: 'Open' on a chest, 'Talk' on one of the folk. */
   play(kind: string, index: number, clip: string, once?: boolean): void;
+  /** 0 in the last valley, 1 in the burning wasteland beyond it. */
+  wasteland: (x: number, z: number) => number;
+  /** The end of the world: 0 as it is, 1 all burnt, the valley too. */
+  burn(amount: number): void;
+  /** The ball of the planet, for the end. */
+  globe: THREE.Object3D;
+  /** Holds the ball under the valley instead of under the camera, and shows or hides the land. */
+  hold(globeStill: boolean, landShown: boolean): void;
 }
 
 export function planetWorld(planet: Planet): PlanetWorld {
@@ -1372,8 +1493,9 @@ export function planetWorld(planet: Planet): PlanetWorld {
   // The land curves like the globe, so it meets the ball at its edge.
   const radius = { value: scenery.globeRadius };
   const level = scenery.liquid.level;
-  const near = new LandPatch(ground, scenery, seed, radius, { ...NEAR, lag: 6, rim: [0.86, 1], sinkTo: (height) => height - 80, under: 0, hole: 0 });
-  const far = new LandPatch(ground, scenery, seed, radius, { ...FAR, lag: 5, rim: [0.66, 0.97], sinkTo: () => level - SUNK, under: 1.5, hole: HOLE });
+  const dead = wasteland(planet);
+  const near = new LandPatch(ground, scenery, seed, radius, { ...NEAR, lag: 6, rim: [0.86, 1], sinkTo: (height) => height - 80, under: 0, hole: 0 }, dead);
+  const far = new LandPatch(ground, scenery, seed, radius, { ...FAR, lag: 5, rim: [0.66, 0.97], sinkTo: () => level - SUNK, under: 1.5, hole: HOLE }, dead);
   const liquid = liquidSheet(scenery, radius);
   const props = new PropField(planet, ground, scenery, radius);
   const clouds = new CloudField(scenery, seed, radius);
@@ -1384,14 +1506,22 @@ export function planetWorld(planet: Planet): PlanetWorld {
   const flora = new FloraField(planet, ground, scenery, radius);
   const features = planetFeatures(planet, ground);
   const paths = planetPaths(planet, features);
-  const grass = new GrassField(ground, scenery, seed, radius, paths);
+  const grass = new GrassField(ground, scenery, seed, radius, paths, dead);
+  const smoke = new SmokeField(ground, scenery, seed, radius);
+  const lava = lavaSea(scenery, radius);
   const forest = new ForestField(planet, ground, scenery, radius, seed, paths);
   const landmarks = new Landmarks(planet, ground, radius);
-  group.add(sky, near.mesh, far.mesh, liquid, props.group, flora.group, grass.mesh, forest.group, pathRibbons(paths, ground, scenery.liquid.level, radius), landmarks.group, landingPad(radius), ball, clouds.mesh);
+  group.add(sky, near.mesh, far.mesh, liquid, props.group, flora.group, grass.mesh, forest.group, pathRibbons(paths, ground, scenery.liquid.level, radius), landmarks.group, landingPad(radius), ball, clouds.mesh, lava, smoke.group);
+  // The end of the world: every material darkens to char and glows like embers.
+  const burnable: { material: THREE.Material & { color?: THREE.Color; emissive?: THREE.Color }; color?: THREE.Color; emissive?: THREE.Color }[] = [];
+  const CHAR = colour('#2a1210');
+  const FIRE = colour('#ff4a14');
+  let globeStill = false;
   let before = 0;
   const horizon = colour(scenery.sky.horizon);
   const space = colour(scenery.sky.space);
   const lavaGlow = colour(scenery.liquid.colour);
+  const ember = colour('#ff5a2a');
 
   return {
     group,
@@ -1414,16 +1544,51 @@ export function planetWorld(planet: Planet): PlanetWorld {
       (sky.material as THREE.ShaderMaterial).uniforms.airOut.value = out;
       // The ball sits just under the lowest land, below the camera. On the
       // ground the land hides it; it shows as the ship climbs.
-      ball.position.set(camera.position.x, scenery.liquid.level - 30 - scenery.globeRadius, camera.position.z);
-      ball.visible = out > 0.02;
+      smoke.update(seconds);
+      if (globeStill) {
+        ball.position.set(0, scenery.liquid.level - 30 - scenery.globeRadius, 0);
+        ball.rotation.set(0, 0, 0);
+      } else {
+        ball.position.set(camera.position.x, scenery.liquid.level - 30 - scenery.globeRadius, camera.position.z);
+        // Turned so the living valley stays where it is on the ball.
+        ball.rotation.set(-camera.position.z / scenery.globeRadius, 0, camera.position.x / scenery.globeRadius);
+        ball.visible = out > 0.02;
+      }
       if (scenery.liquid.glows) {
         const material = liquid.material as THREE.MeshToonMaterial;
         material.emissiveIntensity = 0.75 + 0.15 * Math.sin(seconds * 1.7);
         material.emissive.copy(lavaGlow);
       }
     },
-    haze(out) {
-      return horizon.clone().lerp(space, out);
+    haze(out, x = 0, z = 0) {
+      // A dying world: the air is tinged with the fires past the mountains,
+      // and out in the wasteland it is thick, dark smoke.
+      return horizon.clone().lerp(ember, 0.22).lerp(SMOKE, dead(x, z) * 0.75).lerp(space, out);
+    },
+    wasteland: dead,
+    globe: ball,
+    hold(still, landShown) {
+      globeStill = still;
+      if (still) ball.visible = true;
+      for (const child of group.children) if (child !== sky && child !== ball) child.visible = landShown;
+    },
+    burn(amount) {
+      if (burnable.length === 0) {
+        group.traverse((object) => {
+          if (object === sky || !(object instanceof THREE.Mesh)) return;
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            const m = material as THREE.Material & { color?: THREE.Color; emissive?: THREE.Color };
+            if (burnable.some((entry) => entry.material === m)) continue;
+            burnable.push({ material: m, color: m.color?.clone(), emissive: m.emissive?.clone() });
+          }
+        });
+      }
+      for (const entry of burnable) {
+        if (entry.color && entry.material.color) entry.material.color.copy(entry.color).lerp(CHAR, amount * 0.85);
+        if (entry.emissive && entry.material.emissive) entry.material.emissive.copy(entry.emissive).lerp(FIRE, amount * 0.55);
+      }
+      smoke.burn(amount);
+      (sky.material as THREE.ShaderMaterial).uniforms.burn.value = amount;
     },
     features: landmarks.features,
     paths,

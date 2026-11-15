@@ -191,6 +191,19 @@ function ridges(x: number, z: number, seed: number, octaves = 3): number {
 /** The flat ground around the landing site, where the ship starts. */
 export const LANDING_FLAT = { inner: 60, outer: 200 };
 
+/**
+ * The valley around the landing site is the last place on the planet where
+ * anyone can live. Beyond the ring of mountains the land is dead: scorched,
+ * cracked and burning. The border wanders a little, so it is not a circle.
+ */
+export const LAST_VALLEY = { inner: 780, outer: 1000 };
+
+/** 0 inside the last valley, rising to 1 in the wasteland beyond it. */
+export function wasteland(planet: Partial<PlanetLook> & { name?: string }): (x: number, z: number) => number {
+  const seed = nameSeed(planet.name ?? 'neutral') + 8111;
+  return (x, z) => smooth(LAST_VALLEY.inner, LAST_VALLEY.outer, Math.hypot(x, z) + fbm(x / 600, z / 600, seed, 2) * 120);
+}
+
 /** Steps the land into flat terraces with cliffs between them, `step` metres high. */
 function terrace(height: number, step: number): number {
   const t = height / step;
@@ -338,6 +351,7 @@ export function floraInCell(planet: Partial<PlanetLook> & { name?: string }, ci:
   const weight = scenery.weights.moss;
   if (weight < 0.05) return [];
   const seed = nameSeed(planet.name ?? 'neutral') + 4421;
+  const dead = wasteland(planet);
   const flora: Flora[] = [];
   let n = 0;
   const next = () => hash2(ci * 4253 + n, ck * 7867 - n++, seed);
@@ -351,6 +365,8 @@ export function floraInCell(planet: Partial<PlanetLook> & { name?: string }, ci:
       const tint = next();
       if (Math.hypot(x, z) < 22) continue;
       if (ground(x, z) < scenery.liquid.level + 1.5) continue;
+      // Nothing grows in the wasteland.
+      if (dead(x, z) > 0.25) continue;
       flora.push({ kind, x, z, size, yaw, tint });
     }
   }
@@ -552,8 +568,11 @@ export function forestDensity(planet: Partial<PlanetLook> & { name?: string }, g
   const moss = scenery.weights.moss;
   const relief = scenery.relief;
   const level = scenery.liquid.level;
+  const dead = wasteland(planet);
   return (x, z) => {
     if (moss < 0.2) return 0;
+    const alive = 1 - dead(x, z);
+    if (alive <= 0) return 0;
     const h = ground(x, z);
     if (h < level + 1.5) return 0;
     const patches = smooth(-0.15, 0.3, fbm(x / 900, z / 900, seed, 3));
@@ -562,7 +581,7 @@ export function forestDensity(planet: Partial<PlanetLook> & { name?: string }, g
     const height = 1 - smooth(relief * 1.8, relief * 2.6, h);
     const clear = smooth(LANDING_FLAT.inner + 20, LANDING_FLAT.inner + 120, Math.hypot(x, z));
     const path = paths ? smooth(4, 14, paths.distance(x, z)) : 1;
-    return Math.max(0, Math.min(1, patches * fine * height * clear * path * moss));
+    return Math.max(0, Math.min(1, patches * fine * height * clear * path * moss * alive));
   };
 }
 
