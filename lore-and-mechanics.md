@@ -268,11 +268,34 @@ to do in space.
 
 The jump to Earth at the end is section 13.
 
-### 8. Mission design `OPEN`
+### 8. Mission design `DECIDED` in general, `OPEN` in detail
 
-This is what the challenge asks for and it has no place in the game yet:
-deciding before departure which spacecraft, which instruments and on what
-budget, and having those decisions change what happens next.
+This is what the challenge asks for: deciding before departure what the
+ship needs and on what budget, and having those decisions change what
+happens next.
+
+Team decision (2026-11-15): the way home is a list of what the ship needs
+to leave, gathered all over the last valley and in orbit. A task bar shows
+it:
+- hull plates from the ruins, against the star's flares;
+- ore for lift-off;
+- crystal for the jump drive;
+- solar energy to charge it;
+- the beacons lit, to aim the jump;
+- the colonists, so no one stays behind.
+
+Why each is needed is told with the catalog's values. A first try, a
+mission-control screen with trade-offs, was dropped by the team.
+
+**The last valley.** TRAPPIST-1 e is dying. The valley around the landing
+site is the last place where anyone can live. Beyond its mountains the land
+is burnt, cracked and burning, and walking out there kills.
+
+**The end.** With everything aboard the player leaves in the ship. The
+fires reach the valley, and the planet is destroyed behind them. That is
+the end of the game.
+
+Still open for the team: what exactly the ship needs and how much.
 
 ### 9. Base gameplay `DECIDED` in general, `OPEN` in detail
 
@@ -395,12 +418,12 @@ the player can do anything during it.
 
 | The challenge asks for | Today in the design |
 |---|---|
-| Defining the mission objective | Open (sections 8 and 11) |
-| Designing the spacecraft and choosing instruments | Choosing instruments: the suit visor (section 11), details open. The spacecraft: open (sections 8 and 9) |
-| Choosing a launch vehicle and an orbit | No place yet |
-| Managing mass, power, budget, data, communications, time | The 3D printer can carry part of this if printing has a cost (section 12), details open |
+| Defining the mission objective | Leaving the dying planet with everyone aboard (section 8) |
+| Designing the spacecraft and choosing instruments | What the ship needs: hull plates, ore, crystal, solar energy, beacons for navigation (section 8) |
+| Choosing a launch vehicle and an orbit | Open: the ship flies itself to orbit; the escape velocity is told from the catalog |
+| Managing mass, power, budget, data, communications, time | Ore, crystal and solar energy gathered in the valley and in orbit, shown on the task bar (section 8) |
 | Every decision having consequences | Real gravity and weather can provide them (section 2); so can what the visor did or did not reveal (section 11) |
-| Simulating the mission and explaining why it succeeds or fails | No place yet |
+| Simulating the mission and explaining why it succeeds or fails | The departure and the end of the world; each need says why, from the catalog (section 8) |
 | Playing alone or in a team of up to four | Open |
 | Using NASA data as a core component | Covered (sections 1, 2 and 10) |
 

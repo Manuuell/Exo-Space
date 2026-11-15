@@ -20,6 +20,15 @@ Keep this section up to date after every step.
   (sections on the three planets, the jump runes and the ship) still
   describes the old three-planet scope and needs updating by the team. See
   "Open world and space mining".
+- **The way home and the end (team decision, 2026-11-15):** a task bar at
+  the top of `/play.html` shows what the ship needs to leave and how much
+  of it is aboard: hull plates from the dungeons, ore, crystal, solar
+  energy, the beacons lit and the colonists helped. T says where each is
+  and why the ship needs it, from the catalog. The valley is the last
+  habitable place on TRAPPIST-1 e; beyond its mountains the land burns.
+  With everything aboard, J in space leaves, and the world is destroyed:
+  that is the end. Mission control (an earlier try) was dropped by the
+  team. See "The last valley, and the end of the world".
 - **In the repository:** the documents, the build prompts, the exoplanet
   catalog (6,470 planets), 23 NASA reference models and the web app.
 - **Built:** the catalog reader with its derived values (Prompt 1 in
@@ -70,6 +79,185 @@ Keep this section up to date after every step.
   The image script waits for the team's go-ahead before the first paid
   image.
 - **Deadline:** Sunday, November 15, 2026, 11:59 p.m.
+
+---
+
+## The last valley, and the end of the world (2026-11-15)
+
+The team did not like mission control ("no me gusta ese mission control").
+They asked for:
+- a task bar showing what to gather all over the map;
+- an apocalyptic world outside the map, so that the valley is the last
+  habitable zone;
+- the world destroyed when she gathers everything and leaves, as the end.
+
+Mission control is gone: its page, its rules (`mission.ts`) and its tests.
+On `/play.html`:
+
+- **Task bar** (top centre, `src/play/way-home.ts`): what the ship needs to
+  leave, with how much is aboard:
+  - hull plates: the reward of each dungeon, 0/3;
+  - ore 0/30 and crystal 0/6: asteroids, chests, dungeon rewards, the
+    world boss;
+  - solar energy 0/100 kWh: golden motes in orbit;
+  - beacons lit 0/6;
+  - colonists 0/4: the village's quests.
+
+  T opens the details: where each one is, and why the ship needs it, with
+  the catalog's values when it has them: 0.82 g and 9.7 km/s to leave,
+  65% of Earth's light, a 2,566 K star, 40.5 light years to Earth. The
+  tracker on the left names the next thing missing. With everything aboard
+  the bar turns gold.
+- **The wasteland** (`wasteland()` and `LAST_VALLEY` in `planet-look.ts`):
+  the valley ends about 780–1,000 m from the landing site, just past its
+  ring of mountains, with a wandering border. Beyond it:
+  - the land is black ash split by glowing cracks;
+  - the low ground is a sea of lava;
+  - 120 columns of smoke rise over fires;
+  - no tree, plant or grass grows;
+  - the air is thick red smoke.
+
+  The horizon glows red all around, even from the valley, and the clouds
+  are grey with ash. From space the whole planet is burnt but for the
+  green valley. On foot out there she burns, with a warning to turn back.
+  The map draws it in ash and lava.
+- **The end** (`src/play/ending.ts`): J in space with everything aboard
+  leaves for good. The camera looks across the valley as the fires reach
+  it: it chars, and smoke rises in it. Then it pulls back until the whole
+  planet shows, which glows red, shakes and breaks apart in a flash, with a
+  ring and 160 pieces. A white fade leads to the end card: "The end", how
+  long she stayed, the beacons lit, the colonists saved, and "Play again".
+  Captions tell it: "The fires of the wasteland reach the last valley",
+  "Behind her, TRAPPIST-1 e burns", "Nothing is left of it. Everyone it
+  had is aboard". J before everything is aboard says what is still
+  missing.
+- The opening line says it: "TRAPPIST-1 e is dying. This valley is the last
+  place where anyone can live…"
+
+Checked: `npx tsc --noEmit`, `npm test` (593 tests), `npm run build`, and in
+the browser:
+- the bar and its details;
+- burning in the wasteland, with the warning;
+- the wasteland from the ship and from space;
+- the whole end, from the burning valley to the card;
+- J refused while things are missing.
+
+Not done: the team may want to tune what the ship needs and how much.
+
+---
+
+## Mission control: planning the way home (2026-11-15, dropped)
+
+Dropped the same day by the team; kept here as a record.
+
+The team asked to focus on what the challenge asks ("vamos a centrarnos en
+cumplir ahora lo que pide el reto") and chose, of three options, to answer
+it with the mission home. On `/play.html`, P (or the rocket button at the top
+right) opens mission control and pauses the world. There are four steps.
+
+1. **Objective.**
+   - Get home.
+   - Bring home the answer: which worlds of TRAPPIST-1 are rocky, which
+     needs both size and mass.
+   - Leave a lifeline: a relay the colony can reach a quarter of the time.
+
+   Under them, what the catalog says about where she is.
+2. **Spacecraft.**
+   - Hull: light, or shielded against flares.
+   - Solar panels: silicon or infrared-tuned, 20 or 40 m².
+   - Battery for the planet's shadow: 1 or 4 kWh.
+   - Antenna: low-gain or high-gain.
+   - A payload bay of three slots: transit photometer, spectrograph,
+     thermal imager, star tracker, relay beacon.
+
+   Each card shows its mass, power and cost.
+3. **Launch and orbit.**
+   - Three boosters, each showing what it lifts from this planet.
+   - A low or high orbit, each showing Δv, shadow and how long the colony
+     sees it.
+4. **Fly the mission.** Seven phases, each saying why it went well or
+   badly: lift-off, a flare, power in orbit, the survey of the system, the
+   link with the colony and navigation, the jump, and the arrival. A phase
+   that fails ends the mission there. Then a verdict, a score out of 100
+   and what is left for the colonists. The score counts the objective, the
+   science, the margins and the thrift, which answers the lore's planner
+   that spent everything.
+
+A panel on the right checks the design live: ore and crystal against the
+budget, mass against the booster's lift, average power against the load,
+the shadow against the battery, jump energy, and how the ship finds the
+way.
+
+**Budget.** The budget is her cargo: ore and crystal, and solar energy in
+kWh. Chests (2–8 ore, up to 2 crystal), dungeon rewards (10 ore,
+3 crystal), the world boss (4 crystal) and space mining fill it. A
+practice budget (45 ore, 10 crystal, 100 kWh) lets anyone try designs at
+once. Only her own cargo can make the jump. A success then spends what
+the mission cost and shows the ending, and the tracker's main quest is
+now "The way home".
+
+**What comes from NASA data** (`src/play/mission.ts`, from the catalog row
+of TRAPPIST-1 e and its system):
+- the planet's gravity (0.82 g) and radius, for the Δv to orbit:
+  8.0 km/s to 300 km, against 9.4 from Earth, so the same booster lifts
+  more;
+- the rocket equation for what each booster lifts;
+- each orbit's period, shadow (40% low, 23% high) and time in view of the
+  colony;
+- the light it gets (65% of Earth's) and the star's temperature (2,566 K),
+  for what silicon or infrared-tuned cells give;
+- the distance to Earth (12.43 pc), for the jump's energy;
+- the seven planets' radii, masses, years and temperatures, shown by the
+  survey;
+- density from radius and mass, to tell which are rocky.
+
+**The game's own figures**, for the team to tune in `mission.ts`: part
+masses, costs, power draws, the jump drive's 2.4 kWh per tonne and parsec,
+and the flare that burns the most fragile instrument of an unshielded
+ship. The starting design fails for lack of power on purpose, and its
+phase says what to change.
+
+Checked: `npx tsc --noEmit`, `npm test` (601 tests, 13 new in
+`test/mission.test.ts`), `npm run build`, and in the browser:
+- the four steps;
+- the bay closing at three;
+- the launch blocked when over budget;
+- a shielded survey mission with its real values and 7 of 7 worlds rocky;
+- the starting design failing on power, with the reason;
+- a flight with her own cargo: the ending, and the cargo spent;
+- Escape closing the screen.
+
+Not done:
+- the jump animation through the catalog (section 13);
+- `lore-and-mechanics.md` still needs the team's word on the details.
+
+---
+
+## Getting out of the ship (2026-11-15)
+
+The team could not get out of the ship ("no se puede bajar de la nave"): F
+only worked once landed, and landing with L needed her under 60 m and
+20 m/s first, with nothing on screen to say so. On `/play.html` now:
+
+- **F while flying over the valley** brings the ship down on its own and
+  she steps out once it is down. **L** does the same without stepping out.
+  From high up the ship dives nose down with the boost, then levels out,
+  brakes and lands. Pressing again, climbing (Space) or speeding up (W)
+  calls it off.
+- **In space**, L takes her back down and lands (F still fires there).
+- While flying, the bottom of the screen always shows the keys:
+  - "F Land and get out · L Land";
+  - "Coming down to land…" while it lands;
+  - "L Go back down and land" in space.
+
+  The controls panel says the same.
+
+Checked: `npx tsc --noEmit`, `npm test` (588 tests), `npm run build`, and in
+the browser:
+- F at full speed near the ground: out in 1.5 s;
+- F from 560 m: out in 13 s;
+- L from space at 2,200 m: landed in 22.5 s;
+- F then Space: it keeps flying.
 
 ---
 

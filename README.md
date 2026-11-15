@@ -8,9 +8,17 @@ way home.
 Built for the NASA Space Apps Challenge 2026, challenge "Space Mission Design
 Game".
 
-> **Status (2026-11-14):** foundations. The game loads the exoplanet catalog
-> and derives values from it, and the modelling kit and its viewers work;
-> there is no gameplay yet.
+TRAPPIST-1 e is dying, and you are on it. One valley is still habitable;
+beyond its mountains the land burns. The ship needs hull plates from the
+ruins, ore, crystal and solar energy from orbit, the beacons lit to aim the
+jump, and the colonists, so no one stays behind. A task bar shows what is
+still missing and where to find it, and why the ship needs it, with the
+planet's real values from the catalog. With everything aboard you leave,
+and the world ends behind you.
+
+> **Status (2026-11-15):** playable prototype at `/play.html`: the last
+> valley of TRAPPIST-1 e, dungeons, the ship, space mining, the task bar
+> and the end.
 
 ## Run it
 
@@ -22,7 +30,8 @@ npm install
 npm run dev
 ```
 
-Then open http://127.0.0.1:5173.
+Then open http://127.0.0.1:5173/play.html to play. T shows what the ship
+needs and where, H the controls and M the map.
 
 | Command (inside `web/`) | What it does |
 |---|---|
