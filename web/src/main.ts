@@ -1,5 +1,16 @@
 import * as THREE from 'three';
+import { derive, isComplete } from './data/derived.ts';
+import { loadCatalog } from './data/exoplanets.ts';
 import './style.css';
+
+// The catalog is loaded once, at start, and stays in memory for the whole
+// game: later calls to loadCatalog() get the same list.
+loadCatalog()
+  .then((planets) => {
+    const complete = planets.filter((planet) => isComplete(derive(planet))).length;
+    console.info(`Exoplanet catalog: ${planets.length} planets, ${complete} with every derived value.`);
+  })
+  .catch((error: unknown) => console.error(error));
 
 // Starting point: an empty scene that proves the base runs. The game is
 // built from here (see HANDOFF.md, "Build order").
