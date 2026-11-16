@@ -508,6 +508,12 @@ kbd {
   color: var(--gold);
 }
 
+#settings h3 {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--cyan);
+}
+
 #settings .setting {
   display: grid;
   grid-template-columns: 1fr 150px 52px;

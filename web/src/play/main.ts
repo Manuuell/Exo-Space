@@ -45,11 +45,13 @@ import type { Dungeon } from './dungeon.ts';
 import { endOfTheWorld } from './ending.ts';
 import type { Ending } from './ending.ts';
 import { Animated, STRIDES } from './animated.ts';
+import { GameAudio } from './audio.ts';
 import { FOLLOW, damp, newFollow, stepFollow } from './camera-follow.ts';
 import { feedLook, newLook, stepLook } from './mouse-look.ts';
 import { DEFAULT_SETTINGS, SETTING_LIMITS, loadSettings, sanitizeSettings, saveSettings } from './settings.ts';
 import type { Settings } from './settings.ts';
 import { nextTask, ready, wayHome } from './way-home.ts';
+import { ambienceMix, footfalls } from './sounds.ts';
 import type { Progress, Task, TaskId } from './way-home.ts';
 import { distanceLightYears } from '../data/derived.ts';
 import type { Exoplanet } from '../data/exoplanets.ts';
@@ -197,6 +199,8 @@ let follow = newFollow();
 
 const browserStorage = (() => { try { return window.localStorage; } catch { return null; } })();
 let settings: Settings = loadSettings(browserStorage);
+/** The game's sound: silent until she clicks to play (see audio.ts). */
+const audio = new GameAudio(settings);
 const settingsPanel = $<HTMLDivElement>('settings');
 const settingInputs = {
   sensitivity: $<HTMLInputElement>('set-sensitivity'),
@@ -220,11 +224,13 @@ function showSettings() {
   settingInputs.rawInput.checked = settings.rawInput;
   settingValues.sensitivity.textContent = `${settings.sensitivity.toFixed(2)}×`;
   settingValues.fov.textContent = `${Math.round(settings.fov)}°`;
+  showVolumes();
 }
 function changeSettings(change: Partial<Settings>) {
   const rawBefore = settings.rawInput;
   settings = sanitizeSettings({ ...settings, ...change });
   saveSettings(browserStorage, settings);
+  audio.setVolumes(settings);
   showSettings();
   // Raw input is chosen when the pointer is locked: lock it again to apply it.
   if (settings.rawInput !== rawBefore && locked()) document.exitPointerLock?.();
@@ -235,8 +241,24 @@ settingInputs.invertY.addEventListener('change', () => changeSettings({ invertY:
 settingInputs.smoothing.addEventListener('change', () => changeSettings({ smoothing: settingInputs.smoothing.checked }));
 settingInputs.rawInput.addEventListener('change', () => changeSettings({ rawInput: settingInputs.rawInput.checked }));
 $<HTMLButtonElement>('set-reset').addEventListener('click', () => changeSettings({ ...DEFAULT_SETTINGS }));
+// Volumes: four sliders, saved with the rest.
+const VOLUME_KEYS = ['master', 'music', 'sfx', 'ambience'] as const;
+for (const key of VOLUME_KEYS) {
+  const input = $<HTMLInputElement>(`set-${key}`);
+  input.min = String(SETTING_LIMITS[key].min);
+  input.max = String(SETTING_LIMITS[key].max);
+  input.step = String(SETTING_LIMITS[key].step);
+  input.addEventListener('input', () => changeSettings({ [key]: Number(input.value) }));
+}
+function showVolumes() {
+  for (const key of VOLUME_KEYS) {
+    $<HTMLInputElement>(`set-${key}`).value = String(settings[key]);
+    $<HTMLSpanElement>(`set-${key}-value`).textContent = `${Math.round(settings[key] * 100)}%`;
+  }
+}
 function toggleSettings() {
   settingsPanel.hidden = !settingsPanel.hidden;
+  audio.play(settingsPanel.hidden ? 'uiClose' : 'uiOpen', { volume: 0.6 });
   if (!settingsPanel.hidden) {
     showSettings();
     document.exitPointerLock?.();
@@ -264,6 +286,7 @@ function lockPointer() {
 const startScreen = $<HTMLDivElement>('start');
 $<HTMLButtonElement>('start-button').addEventListener('click', () => {
   startScreen.hidden = true;
+  audio.start();
   lockPointer();
   say('TRAPPIST-1 e is dying. This valley is the last place where anyone can live: gather what the ship needs (T), and take its people home.', 8);
 });
@@ -362,6 +385,7 @@ function knockBack(from: THREE.Vector3Like, strength: number, up = 0) {
 
 let weapon: Animated | null = null;
 function equip(index: number) {
+  if (weapon) audio.play('weaponSwitch', { volume: 0.7 });
   if (weapon) hand.remove(weapon.model.root);
   player.arm = index;
   const entry = weapons.find((candidate) => candidate.id === ARSENAL[index].id)!;
@@ -467,6 +491,7 @@ function fire() {
   const from = muzzlePoint();
   flash(from, arm.tint, 1.4, 0.09);
   weapon?.play('Fire', true, true);
+  audio.play(arm.style === 'bolt' ? 'plasmaFire' : arm.style === 'vortex' ? 'gravityFire' : arm.style === 'chain' ? 'ionFire' : 'fusionFire', { volume: arm.style === 'bolt' ? 0.6 : 0.9 });
   if (arm.style === 'chain') {
     chainLightning(from);
     return;
@@ -514,6 +539,7 @@ function chainLightning(from: THREE.Vector3) {
     bolt(source, at, arm.tint);
     flash(at, '#e8ffff', 1.6, 0.15);
     hurt(target, damage, at.clone().sub(source));
+    if (jump > 0) audio.play('ionChain', { at, volume: 0.8 });
     struck.add(target);
     source = at;
     damage = Math.round(damage * 0.75);
@@ -572,6 +598,7 @@ function burst(item: Flying) {
   const arm = item.arm;
   if (arm.style === 'bolt') {
     ring(at, arm.tint, 2.2, 0.3);
+    audio.play('plasmaHit', { at, volume: 0.7 });
   } else if (arm.style === 'vortex') {
     vortex(at);
   } else if (arm.style === 'mortar') {
@@ -581,6 +608,7 @@ function burst(item: Flying) {
     ring(at.clone().setY(at.y + 0.3), '#ffb347', 8, 0.5);
     ring(at.clone().setY(at.y + 1.2), '#ff7a2a', 5, 0.7);
     shake = Math.max(shake, 0.4);
+    audio.play('fusionExplosion', { at });
     for (const enemy of here()) {
       if (enemy.health > 0 && enemy.object.position.distanceTo(at) < arm.splash + enemy.radius) hurt(enemy, arm.damage, enemy.object.position.clone().sub(at), 3, true);
     }
@@ -640,6 +668,7 @@ function updateShots(dt: number) {
       flash(item.at.clone().setY(item.at.y + 0.8), '#c58bff', 4, 0.4);
       for (const enemy of here()) if (enemy.health > 0 && enemy.object.position.distanceTo(item.at) < 6 + enemy.radius) hurt(enemy, 22, enemy.object.position.clone().sub(item.at), 4, true);
       item.group.parent?.remove(item.group);
+      audio.play('gravityCollapse', { at: item.at });
       vortices.splice(i, 1);
     }
   }
@@ -958,11 +987,13 @@ function damagePlayer(amount: number) {
   shake = Math.max(shake, 0.15);
   if (player.health <= 0) {
     player.down = true;
+    audio.play('knockedDown');
     player.gliding = false;
     hero.play('Defeat', true, true);
     say(place === 'world' ? 'Knocked out — press R to get up at the landing pad' : 'Knocked out — press R to get up at the dungeon entrance', 9999);
     return;
   }
+  audio.play('hurt', { volume: 0.8 });
   player.busy = hero.length('Hit') || 0.5;
   hero.play('Hit', true, true, 0.05);
 }
@@ -1820,6 +1851,7 @@ function pulse() {
   const at = player.position.clone().setY(player.position.y + 1);
   ring(at, '#c58bff', PULSE.radius, 0.45);
   flash(at, '#8d4bff', 2.5, 0.35);
+  audio.play('pulse');
   hero.overlay(SHOT_KICK);
   for (const enemy of here()) {
     if (enemy.health <= 0) continue;
@@ -1837,6 +1869,7 @@ function starfall() {
   player.charge = 0;
   const at = player.position.clone().setY(player.position.y + 1);
   flash(at, '#ffd23f', STARFALL.radius, 0.8);
+  audio.play('starfallCast');
   ring(at, '#ff8fc4', STARFALL.radius, 0.7);
   ring(at.clone().setY(at.y + 0.5), '#ffd23f', STARFALL.radius * 0.7, 0.9);
   hero.play('Victory', true, true, 0.05);
@@ -1935,6 +1968,7 @@ function leave() {
 }
 
 function startEnding() {
+  audio.play('jumpCharge');
   document.body.classList.add('cinematic');
   taskDetail.hidden = true;
   hud.help.hidden = true;
@@ -1998,6 +2032,7 @@ let laserCooldown = 0;
 
 /** Twin lasers from the wing pods, along the ship's nose. */
 function fireLasers() {
+  audio.play('laser', { volume: 0.55 });
   const nose = noseOf(flight);
   const direction = new THREE.Vector3(nose.x, nose.y, nose.z).normalize();
   const side = new THREE.Vector3(-Math.cos(flight.yaw), 0, Math.sin(flight.yaw));
@@ -2014,6 +2049,7 @@ function fireLasers() {
 function breakRock(rock: (typeof space.rocks)[number]) {
   rock.gone = 60;
   rock.object.visible = false;
+  audio.play('asteroidBreak');
   flash(rock.centre, '#ffb347', rock.radius * 0.8, 0.5);
   const count = 2 + Math.round(rock.radius / 6);
   for (let k = 0; k < count; k++) {
@@ -2046,6 +2082,7 @@ function updateSpace(dt: number, seconds: number) {
     const hit = space.rocks.find((rock) => rock.gone <= 0 && segment.closestPointToPoint(rock.centre, true, closest).distanceTo(rock.centre) < rock.radius * 0.95);
     if (hit) {
       hit.health -= 12;
+      audio.play('asteroidHit', { volume: 0.6 });
       damageNumber(closest, 12);
       if (hit.health <= 0) breakRock(hit);
     }
@@ -2067,6 +2104,7 @@ function updateSpace(dt: number, seconds: number) {
     item.object.rotation.y += dt * 2;
     if (mode === 'ship' && distance < 14) {
       cargo[item.kind as Material] += item.kind === 'ore' ? 3 : 1;
+      audio.play(item.kind === 'ore' ? 'ore' : 'crystal', { volume: 0.8 });
       scene.remove(item.object);
       chunks.splice(i, 1);
     } else if (item.gone <= 0) {
@@ -2082,6 +2120,7 @@ function updateSpace(dt: number, seconds: number) {
         mote.gone = 25;
         mote.object.visible = false;
         cargo.solar += 10;
+        audio.play('solar');
         say(`Solar energy +10 kWh (${cargo.solar})`, 1.2);
       }
     }
@@ -2246,6 +2285,7 @@ function transition(then: () => void) {
 }
 
 function enterDungeon(k: number) {
+  audio.play('portal');
   transition(() => {
     clearShots();
     const delve = delveInto(k);
@@ -2263,6 +2303,7 @@ function enterDungeon(k: number) {
 
 function leaveDungeon() {
   const k = place as number;
+  audio.play('portal');
   transition(() => {
     clearShots();
     place = 'world';
@@ -2288,6 +2329,7 @@ function updateDungeon(dt: number, seconds: number) {
     delve.cleared[h] = true;
     if (h < 2) {
       delve.dungeon.open(h);
+      audio.play('doorOpen');
       say('The way ahead opens!', 2.5);
     } else {
       delve.done = true;
@@ -2333,6 +2375,7 @@ function talk(who: string, line: string) {
   hud.who.textContent = who;
   hud.line.textContent = line;
   hud.dialog.hidden = false;
+  audio.play('talkBlip', { volume: 0.7 });
 }
 
 // The four weapons, like a party on the right.
@@ -2348,6 +2391,7 @@ function updateQuests() {
     const [done, total] = quest.goal();
     if (quest.state === 'active' && done >= total) {
       quest.state = 'done';
+      audio.play('questComplete');
       say(`Quest complete: ${quest.title}`, 4);
       talk(NAMES[quest.giver], quest.thanks);
     }
@@ -2840,6 +2884,7 @@ function drawMap() {
 
 function toggleMap() {
   mapScreen.hidden = !mapScreen.hidden;
+  audio.play(mapScreen.hidden ? 'uiClose' : 'uiOpen', { volume: 0.6 });
   if (!mapScreen.hidden) {
     document.exitPointerLock?.();
     drawMap();
@@ -2869,6 +2914,7 @@ function travelTo(k: number) {
     return;
   }
   const spot = features.beacons[k];
+  audio.play('travel');
   const back = Math.atan2(-spot.x, -spot.z);
   player.position.set(spot.x + Math.sin(back) * 6, 0, spot.z + Math.cos(back) * 6);
   player.position.y = ground(player.position.x, player.position.z);
@@ -2914,6 +2960,7 @@ function use(what: Usable) {
     const delve = dungeonOf(what.index);
     delve.opened = true;
     delve.chest.play('Open', true, true);
+    audio.play('chestOpen');
     flash(delve.dungeon.chest.clone().setY(1.5), '#ffd23f', 3, 0.6);
     cargo.ore += 10;
     cargo.crystal += 3;
@@ -2926,6 +2973,7 @@ function use(what: Usable) {
     if (!quest) return;
     if (quest.state === 'offered') {
       quest.state = 'active';
+      audio.play('questAccept');
       talk(`${NAMES[what.index]} — ${quest.title}`, quest.ask);
       say(`New quest: ${quest.title}`, 2.5);
     } else if (quest.state === 'active') {
@@ -2942,6 +2990,7 @@ function use(what: Usable) {
     }
     found.chests.add(what.index);
     world.play('chest', what.index, 'Open', true);
+    audio.play('chestOpen');
     // Chests hold what the ship needs.
     const loot = [{ ore: 5, crystal: 1 }, { ore: 2, crystal: 2 }, { ore: 6, crystal: 0 }, { ore: 3, crystal: 1 }, { ore: 8, crystal: 1 }][what.index % 5];
     cargo.ore += loot.ore;
@@ -2964,6 +3013,7 @@ function stepFoot(dt: number) {
   if (p.down) {
     if (pressed.has('KeyR')) {
       p.down = false;
+      audio.play('getUp');
       p.health = MAX_HEALTH;
       p.position.copy(place === 'world' ? HOME : dungeonOf(place).dungeon.start);
       say('');
@@ -3010,6 +3060,7 @@ function stepFoot(dt: number) {
   if (pressed.has('Space')) {
     if (p.grounded) {
       p.velocityY = JUMP;
+      audio.play('jump', { volume: 0.6 });
       p.grounded = false;
       p.busy = 0;
       // The spring and the flight, stretched over the time she will really
@@ -3019,6 +3070,7 @@ function stepFoot(dt: number) {
       hero.pace(JUMP_AIR, hero.length(JUMP_AIR) / Math.max(0.4, (2 * JUMP) / flightWorld.gravity));
     } else if (!p.gliding && p.position.y - floor > 2.5) {
       p.gliding = true;
+      audio.play('gliderOpen', { volume: 0.8 });
     } else if (p.gliding) {
       p.gliding = false;
     }
@@ -3036,6 +3088,7 @@ function stepFoot(dt: number) {
     p.airTime = 0;
     if (landed) {
       hero.play(JUMP_LAND, true, true);
+      audio.play('land', { volume: 0.7 });
       // Standing, the whole squash plays; on the move, the legs take over soon.
       p.busy = moving ? 0.12 : hero.length(JUMP_LAND) * 0.9;
     }
@@ -3095,6 +3148,7 @@ function stepFoot(dt: number) {
     if (found.shards.has(k) || place !== 'world') return;
     if (Math.hypot(spot.x - p.position.x, spot.z - p.position.z) < TAKE_SHARD && Math.abs(ground(spot.x, spot.z) + 1.3 - p.position.y) < 3) {
       found.shards.add(k);
+      audio.play('shard', { volume: 0.8 });
       const shard = world.item('shard', k);
       if (shard) shard.userData.taken = true;
       say(`Star shard ${found.shards.size}/${features.shards.length}`, 1.5);
@@ -3104,6 +3158,7 @@ function stepFoot(dt: number) {
     if (found.beacons.has(k) || place !== 'world') return;
     if (Math.hypot(spot.x - p.position.x, spot.z - p.position.z) < LIGHT_BEACON) {
       found.beacons.add(k);
+      audio.play('beaconLit');
       const lit = world.item('beacon', k)?.getObjectByName('lit');
       if (lit) lit.visible = true;
       say(`Beacon lit (${found.beacons.size}/${features.beacons.length}) — travel to it from the map (M)`, 3.5);
@@ -3285,6 +3340,122 @@ const clock = new THREE.Clock();
 let seconds = 0;
 let questTimer = 0;
 
+// --- Sound ---------------------------------------------------------------------------
+
+// Buttons click; the round menu buttons tick when the pointer is over them.
+document.addEventListener('click', (event) => { if ((event.target as HTMLElement | null)?.closest('button')) audio.play('uiClick', { volume: 0.6 }); });
+document.querySelectorAll('.round').forEach((button) => button.addEventListener('pointerenter', () => audio.play('uiHover', { volume: 0.4 })));
+
+const heard = {
+  /** Where she was in her stride last frame, and in which clip. */
+  stride: -1,
+  strideClip: '',
+  aiming: false,
+  shipMode: 'landed' as FlightState['mode'],
+  starfallReady: false,
+  pulseCooling: false,
+  tasks: '',
+  /** Seconds to the next look at where she is, for the ambience. */
+  around: 0,
+};
+/** Tasks that chime when one more comes aboard; ore, crystal and solar have their own pickup sounds. */
+const CHIMED = new Set(['plates', 'beacons', 'colonists']);
+
+/** Share of the land around a point that is under water, from 16 points at 15 and 35 m. */
+function waterAround(x: number, z: number): number {
+  let wet = 0;
+  for (let k = 0; k < 16; k++) {
+    const angle = (k / 8) * Math.PI;
+    const r = k < 8 ? 15 : 35;
+    if (worldGround(x + Math.cos(angle) * r, z + Math.sin(angle) * r) < level) wet++;
+  }
+  return wet / 16;
+}
+
+/** One frame of sound: footsteps, the loops on her and the ship, chimes, the ambience and the music. */
+function soundTick(dt: number) {
+  if (!audio.started) return;
+  audio.listen(camera);
+  const p = player;
+
+  // Her feet, when they land, on what she walks on.
+  const stride = hero.action(hero.current);
+  if (mode === 'foot' && p.grounded && !p.down && stride && STRIDES.has(hero.current)) {
+    const phase = stride.time / stride.getClip().duration;
+    if (heard.strideClip === hero.current && heard.stride >= 0 && footfalls(heard.stride, phase) > 0) {
+      const on = place !== 'world' ? 'stepStone' : world.paths.distance(p.position.x, p.position.z) < 2.6 ? 'stepDirt' : 'stepGrass';
+      audio.play(on, { volume: hero.current.startsWith('Run') ? 0.7 : 0.45 });
+    }
+    heard.stride = phase;
+    heard.strideClip = hero.current;
+  } else {
+    heard.stride = -1;
+    heard.strideClip = '';
+  }
+  if (mode === 'foot' && aiming !== heard.aiming) audio.play(aiming ? 'aimIn' : 'aimOut', { volume: 0.5 });
+  heard.aiming = aiming;
+
+  // Loops on her: the glider, low health, burning in the wasteland.
+  audio.loop('gliderLoop').volume(mode === 'foot' && p.gliding ? 0.5 : 0);
+  audio.loop('lowHealthLoop').volume(mode === 'foot' && !p.down && p.health < 30 ? 0.45 : 0, 0.6);
+  const burning = mode === 'foot' && place === 'world' && !p.down ? world.wasteland(p.position.x, p.position.z) : 0;
+  audio.loop('burningLoop').volume(burning > 0.35 ? 0.55 : 0, 0.4);
+  // The newest gravity vortex turns where it is.
+  const turning = vortices[vortices.length - 1];
+  const vortex = audio.loop('gravityVortexLoop', turning?.at ?? p.position);
+  vortex.volume(turning ? 0.8 : 0, 0.15);
+  if (turning) vortex.place(turning.at);
+
+  // The ship: its engine by its speed, take-off, landing and the boost.
+  const flying = mode === 'ship';
+  const engine = audio.loop('engineLoop');
+  engine.volume(flying ? (flight.mode === 'landed' ? 0.2 : 0.55) : 0, 0.5);
+  if (flying) engine.rate(0.8 + Math.min(1.2, flight.speed / 400));
+  if (flying && flight.mode !== heard.shipMode) {
+    if (flight.mode === 'takeoff') audio.play('takeoff');
+    if (flight.mode === 'landing') audio.play('shipLand');
+  }
+  heard.shipMode = flight.mode;
+  if (flying && flight.mode !== 'landed' && (pressed.has('ShiftLeft') || pressed.has('ShiftRight'))) audio.play('boost', { volume: 0.6 });
+
+  // Skills coming ready.
+  const ready = p.charge >= STARFALL.charge;
+  if (ready && !heard.starfallReady) audio.play('starfallReady');
+  heard.starfallReady = ready;
+  if (heard.pulseCooling && p.pulse <= 0) audio.play('cooldownReady', { volume: 0.5 });
+  heard.pulseCooling = p.pulse > 0;
+
+  // The task bar: a chime when a plate, a beacon or a colonist comes aboard, a fanfare when a need is met.
+  const now = progress();
+  const key = JSON.stringify(now);
+  if (heard.tasks && key !== heard.tasks) {
+    const before = JSON.parse(heard.tasks) as Progress;
+    const list = taskList();
+    if (list.some((task) => now[task.id] >= task.need && before[task.id] < task.need)) audio.play('taskComplete');
+    else if (list.some((task) => CHIMED.has(task.id) && now[task.id] > before[task.id])) audio.play('taskProgress', { volume: 0.6 });
+  }
+  heard.tasks = key;
+
+  // The ambience of where she is, and the music, softer in the dungeons.
+  heard.around -= dt;
+  if (heard.around <= 0) {
+    heard.around = 0.25;
+    const x = flying ? flight.position.x : p.position.x;
+    const z = flying ? flight.position.z : p.position.z;
+    audio.surroundings(ambienceMix(place !== 'world'
+      ? { dungeon: true, space: 0, forest: 0, water: 0, village: Infinity, burnt: 0 }
+      : {
+        dungeon: false,
+        space: flying ? THREE.MathUtils.clamp((flight.position.y - flightWorld.ceiling * 0.5) / (flightWorld.ceiling * 0.5), 0, 1) : 0,
+        forest: woods(x, z),
+        water: waterAround(x, z),
+        village: features.village ? Math.hypot(x - features.village.centre.x, z - features.village.centre.z) : Infinity,
+        burnt: world.wasteland(x, z),
+      }));
+    audio.music(place !== 'world' ? 0.55 : 1);
+  }
+}
+
 /** One step of the game, `dt` seconds long. */
 function frame(dt: number) {
   // The end of the world plays out on its own; after it, nothing moves.
@@ -3305,10 +3476,14 @@ function frame(dt: number) {
   }
   if (pressed.has('KeyT')) {
     taskDetail.hidden = !taskDetail.hidden;
+    audio.play(taskDetail.hidden ? 'uiClose' : 'uiOpen', { volume: 0.6 });
     updateTaskBar();
   }
   if (pressed.has('KeyJ')) leave();
-  if (pressed.has('KeyH')) hud.help.hidden = !hud.help.hidden;
+  if (pressed.has('KeyH')) {
+    hud.help.hidden = !hud.help.hidden;
+    audio.play(hud.help.hidden ? 'uiClose' : 'uiOpen', { volume: 0.6 });
+  }
   if (pressed.has('KeyM')) toggleMap();
   if (pressed.has('KeyO')) toggleSettings();
   // The mouse turns the camera on foot; in the ship the flight sets it.
@@ -3327,6 +3502,7 @@ function frame(dt: number) {
   if (place === 'world') updateSpace(dt, seconds);
   else updateDungeon(dt, seconds);
   draw(dt, seconds);
+  soundTick(dt);
   questTimer -= dt;
   if (questTimer <= 0) {
     questTimer = 0.25;
@@ -3405,6 +3581,8 @@ Object.assign(window, {
     mouse: (dx: number, dy: number) => feedLook(mouse, dx, dy),
     get settings() { return { ...settings }; },
     set: (change: Partial<Settings>) => changeSettings(change),
+    /** The sound: loaded files, what played and the loops' levels. */
+    get sound() { return audio.describe(); },
   },
 });
 

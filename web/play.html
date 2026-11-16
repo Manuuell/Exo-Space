@@ -54,7 +54,7 @@
       <p>Mouse look · <kbd>Click</kbd> shoot · <kbd>Right click</kbd> aim · <kbd>1</kbd>–<kbd>4</kbd> weapon</p>
       <p><kbd>E</kbd> gravity pulse · <kbd>Q</kbd> starfall, once charged · <kbd>F</kbd> talk, open, board</p>
       <p><kbd>M</kbd> map: click a lit beacon to travel there · <kbd>T</kbd> what the ship needs, and where</p>
-      <p><kbd>O</kbd> settings: mouse sensitivity, invert, field of view</p>
+      <p><kbd>O</kbd> settings: mouse sensitivity, invert, field of view, volumes</p>
       <h2>In the ship</h2>
       <p><kbd>F</kbd> land and get out · <kbd>L</kbd> take off, land · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>↑</kbd><kbd>↓</kbd> nose</p>
       <p><kbd>Space</kbd><kbd>C</kbd> rise, sink · <kbd>Shift</kbd> boost · <kbd>Click</kbd> lasers, and <kbd>F</kbd> too in space</p>
@@ -78,6 +78,11 @@
       <label class="setting check"><input type="checkbox" id="set-invert" /><span>Invert mouse up and down</span></label>
       <label class="setting check"><input type="checkbox" id="set-smoothing" /><span>Smooth the mouse</span></label>
       <label class="setting check"><input type="checkbox" id="set-raw" /><span>Raw mouse input (no pointer acceleration)</span></label>
+      <h3>Sound</h3>
+      <label class="setting"><span>Volume</span><input type="range" id="set-master" /><span class="value" id="set-master-value"></span></label>
+      <label class="setting"><span>Music</span><input type="range" id="set-music" /><span class="value" id="set-music-value"></span></label>
+      <label class="setting"><span>Effects</span><input type="range" id="set-sfx" /><span class="value" id="set-sfx-value"></span></label>
+      <label class="setting"><span>Ambience</span><input type="range" id="set-ambience" /><span class="value" id="set-ambience-value"></span></label>
       <div class="settings-foot">
         <button type="button" id="set-reset">Reset to defaults</button>
         <span class="small"><kbd>O</kbd> to close · click the game to look around again</span>

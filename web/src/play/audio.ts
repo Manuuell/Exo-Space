@@ -46,6 +46,8 @@ export class GameAudio {
   private volumes: Volumes;
   private ambience: Partial<Record<AmbienceName, number>> = {};
   private musicLevel = 1;
+  /** How many times each sound has played, for checking. */
+  private readonly played = new Map<string, number>();
 
   constructor(volumes: Volumes, base = `${import.meta.env.BASE_URL}audio/`) {
     this.volumes = volumes;
@@ -127,6 +129,17 @@ export class GameAudio {
     source.connect(gain);
     this.route(gain, sound.bus, options.at);
     source.start();
+    this.played.set(name, (this.played.get(name) ?? 0) + 1);
+  }
+
+  /** What the sound is doing, for checking from a test or the console. */
+  describe() {
+    return {
+      state: this.context?.state ?? 'not started',
+      loaded: this.buffers.size,
+      played: Object.fromEntries(this.played),
+      loops: Object.fromEntries([...this.loops].map(([name, loop]) => [name, Math.round(loop.gain.gain.value * 100) / 100])),
+    };
   }
 
   /**
