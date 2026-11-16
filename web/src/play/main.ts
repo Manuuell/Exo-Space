@@ -26,7 +26,7 @@ import { skyray } from '../models/enemy-skyray.ts';
 import { spineback } from '../models/enemy-spineback.ts';
 import { stinglash } from '../models/enemy-stinglash.ts';
 import { twinfang } from '../models/enemy-twinfang.ts';
-import { heroCartoon } from '../models/hero-cartoon.ts';
+import { GAIT_SPEED, heroCartoon } from '../models/hero-cartoon.ts';
 import type { ModelEntry } from '../models/kit.ts';
 import { planetWorld } from '../models/planet-scene.ts';
 import { forestDensity } from '../models/planet-look.ts';
@@ -44,7 +44,7 @@ import { buildDungeon } from './dungeon.ts';
 import type { Dungeon } from './dungeon.ts';
 import { endOfTheWorld } from './ending.ts';
 import type { Ending } from './ending.ts';
-import { Animated } from './animated.ts';
+import { Animated, STRIDES } from './animated.ts';
 import { FOLLOW, damp, newFollow, stepFollow } from './camera-follow.ts';
 import { feedLook, newLook, stepLook } from './mouse-look.ts';
 import { DEFAULT_SETTINGS, SETTING_LIMITS, loadSettings, sanitizeSettings, saveSettings } from './settings.ts';
@@ -57,8 +57,13 @@ import './play.css';
 
 // --- Numbers (a first proposal) -------------------------------------------------
 
-const WALK = 4.5;
-const RUN = 8.5;
+// Walking and running speeds, in m/s. They were 4.5 and 8.5, four to five
+// times what her legs cover, so her feet slid; the team chose 3 and 6.5,
+// with longer strides in the clips, played up to PACE_MAX times faster.
+const WALK = 3;
+const RUN = 6.5;
+/** How much faster than its own speed a gait clip may play to keep up with her. */
+const PACE_MAX = 1.8;
 const JUMP = 5.6;
 const GLIDE = 11;
 const GLIDE_SINK = 2.2;
@@ -2951,6 +2956,8 @@ function stepFoot(dt: number) {
   // A blow's shove, dying away.
   move.add(p.knock);
   p.knock.multiplyScalar(Math.max(0, 1 - dt * 5));
+  const startX = p.position.x;
+  const startZ = p.position.z;
   if (move.lengthSq() > 0) {
     const step = move.clone().multiplyScalar(dt);
     const next = p.position.clone().add(step);
@@ -3015,6 +3022,11 @@ function stepFoot(dt: number) {
     else if (shooting) hero.play(moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim');
     else hero.play(moving ? (running ? 'Run' : 'Walk') : 'Idle');
   }
+  // The stride plays as fast as she really goes (slower up a steep slope or
+  // along a wall), so the planted foot does not slide.
+  const gait = hero.current === 'Run' || hero.current === 'RunAim' ? GAIT_SPEED.Run : GAIT_SPEED.Walk;
+  const went = dt > 0 ? Math.hypot(p.position.x - startX, p.position.z - startZ) / dt : 0;
+  hero.pace(hero.current, STRIDES.has(hero.current) ? THREE.MathUtils.clamp(went / gait, 0.5, PACE_MAX) : 1);
 
   // Shards, beacons and the ruin, just by getting there.
   features.shards.forEach((spot, k) => {

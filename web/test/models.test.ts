@@ -168,3 +168,40 @@ for (const entry of CATALOG) {
     }
   }
 }
+
+test('the protagonist’s gait speeds match her strides, so the game can play them without sliding', async () => {
+  const { GAIT_SPEED, heroCartoon } = await import('../src/models/hero-cartoon.ts');
+  const model = heroCartoon.create();
+  const mixer = new THREE.AnimationMixer(model.root);
+  const foot = model.root.getObjectByName('foot_l')!;
+  const sample = (name: string) => {
+    const clip = model.clips.find((candidate) => candidate.name === name)!;
+    mixer.stopAllAction();
+    mixer.clipAction(clip).reset().play();
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i <= 240; i++) {
+      mixer.setTime((clip.duration * i) / 240);
+      model.root.updateMatrixWorld(true);
+      points.push(foot.getWorldPosition(new THREE.Vector3()));
+    }
+    return { clip, points };
+  };
+  // A walk: the foot's swing, front to back, over half a stride.
+  const walk = sample('Walk');
+  const swing = Math.max(...walk.points.map((p) => p.z)) - Math.min(...walk.points.map((p) => p.z));
+  const walkSpeed = (2 * swing) / walk.clip.duration;
+  assert.ok(Math.abs(walkSpeed - GAIT_SPEED.Walk) / GAIT_SPEED.Walk < 0.1, `Walk carries her ${walkSpeed.toFixed(2)} m/s, not ${GAIT_SPEED.Walk}`);
+  // A run: how fast the foot goes back while it is on the ground.
+  const run = sample('Run');
+  const low = Math.min(...run.points.map((p) => p.y));
+  let travel = 0;
+  let time = 0;
+  for (let i = 1; i < run.points.length; i++) {
+    if (run.points[i].y < low + 0.025 && run.points[i - 1].y < low + 0.025) {
+      travel += run.points[i - 1].z - run.points[i].z;
+      time += run.clip.duration / 240;
+    }
+  }
+  const runSpeed = travel / time;
+  assert.ok(Math.abs(runSpeed - GAIT_SPEED.Run) / GAIT_SPEED.Run < 0.1, `Run carries her ${runSpeed.toFixed(2)} m/s, not ${GAIT_SPEED.Run}`);
+});

@@ -276,15 +276,15 @@ function clips(root: THREE.Group): THREE.AnimationClip[] {
 
   // Walk: a waddle. The body dips when a foot lands and rolls over the leg
   // that carries it; arms swing against the legs.
-  const STEP = 24;
+  const STEP = 36;
   const walkLegs = [
-    mov('body', loop((p) => [0, 0.006 - 0.034 * stride(p) ** 2, 0])),
+    mov('body', loop((p) => [0, 0.008 - 0.045 * stride(p) ** 2, 0])),
     rot('body', loop((p) => [3, -5 * stride(p), -2.5 * wave(p)])),
     scl('chest', loop((p) => [1, 1 - 0.015 * stride(p * 2), 1])),
     rot('leg_l', loop((p) => [-3 - STEP * stride(p), 0, 0])),
     rot('leg_r', loop((p) => [-3 + STEP * stride(p), 0, 0])),
-    rot('shin_l', loop((p) => [46 * lifted(p), 0, 0])),
-    rot('shin_r', loop((p) => [46 * lifted(p + 0.5), 0, 0])),
+    rot('shin_l', loop((p) => [56 * lifted(p), 0, 0])),
+    rot('shin_r', loop((p) => [56 * lifted(p + 0.5), 0, 0])),
     rot('foot_l', loop((p) => [14 * stride(p) - 46 * lifted(p), 0, 0])),
     rot('foot_r', loop((p) => [-14 * stride(p) - 46 * lifted(p + 0.5), 0, 0])),
     mov('backpack', loop((p) => [0, 0.008 * wave(p * 2, 0.3), 0])),
@@ -304,7 +304,7 @@ function clips(root: THREE.Group): THREE.AnimationClip[] {
   ]);
 
   // Run: leaning in, knees high, elbows bent, in the air at each stride.
-  const STRIDE = 40;
+  const STRIDE = 52;
   /**
    * The ankle through a running stride: the sole level until the leg passes
    * under the hips, up on the toes at the push, loose while in the air.
@@ -316,13 +316,13 @@ function clips(root: THREE.Group): THREE.AnimationClip[] {
     return push - (20 - STRIDE * stride(p));
   };
   const runLegs = [
-    mov('body', loop((p) => [0, 0.015 + 0.03 * stride(p * 2), 0])),
+    mov('body', loop((p) => [0, 0.02 + 0.05 * stride(p * 2), 0])),
     rot('body', loop((p) => [13, -8 * stride(p), -2 * wave(p)])),
     scl('chest', loop((p) => [1, 1 + 0.02 * stride(p * 2), 1])),
     rot('leg_l', loop((p) => [-11 - STRIDE * stride(p), 0, 0])),
     rot('leg_r', loop((p) => [-11 + STRIDE * stride(p), 0, 0])),
-    rot('shin_l', loop((p) => [18 + 72 * lifted(p), 0, 0])),
-    rot('shin_r', loop((p) => [18 + 72 * lifted(p + 0.5), 0, 0])),
+    rot('shin_l', loop((p) => [18 + 82 * lifted(p), 0, 0])),
+    rot('shin_r', loop((p) => [18 + 82 * lifted(p + 0.5), 0, 0])),
     rot('foot_l', loop((p) => [runFoot(p), 0, 0])),
     rot('foot_r', loop((p) => [runFoot(p + 0.5), 0, 0])),
     mov('backpack', loop((p) => [0, 0.012 * wave(p * 2, 0.35), 0])),
@@ -474,5 +474,15 @@ function clips(root: THREE.Group): THREE.AnimationClip[] {
 
   return [idle, walk, run, jump, hit, victory, defeat, aim, walkAim, runAim, shoot];
 }
+
+/**
+ * How fast each gait carries her, in metres a second, when its clip plays at
+ * its own speed and the planted foot does not slide: the game plays the clip
+ * faster or slower to match how fast she really goes. A walk has no moment in
+ * the air, so its speed is the foot's swing over half a stride; a run is in
+ * the air most of the stride, so its speed is that of the foot on the ground.
+ * Checked against the clips in test/models.test.ts.
+ */
+export const GAIT_SPEED = { Walk: 1.23, Run: 4.1 } as const;
 
 export const heroCartoon: ModelEntry = { id: 'hero-cartoon', name: 'Hero · cartoon', type: 'player', create };
