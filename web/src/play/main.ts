@@ -27,7 +27,7 @@ import { spineback } from '../models/enemy-spineback.ts';
 import { stinglash } from '../models/enemy-stinglash.ts';
 import { twinfang } from '../models/enemy-twinfang.ts';
 import { heroCartoon } from '../models/hero-cartoon.ts';
-import type { Model, ModelEntry } from '../models/kit.ts';
+import type { ModelEntry } from '../models/kit.ts';
 import { planetWorld } from '../models/planet-scene.ts';
 import { forestDensity } from '../models/planet-look.ts';
 import { glider } from '../models/props-world.ts';
@@ -44,6 +44,7 @@ import { buildDungeon } from './dungeon.ts';
 import type { Dungeon } from './dungeon.ts';
 import { endOfTheWorld } from './ending.ts';
 import type { Ending } from './ending.ts';
+import { Animated } from './animated.ts';
 import { FOLLOW, damp, newFollow, stepFollow } from './camera-follow.ts';
 import { feedLook, newLook, stepLook } from './mouse-look.ts';
 import { DEFAULT_SETTINGS, SETTING_LIMITS, loadSettings, sanitizeSettings, saveSettings } from './settings.ts';
@@ -157,39 +158,6 @@ const stars = (() => {
   return points;
 })();
 scene.add(stars);
-
-// --- Playing clips ----------------------------------------------------------------
-
-/** A model with its clips, playing one at a time with a short blend. */
-class Animated {
-  readonly mixer: THREE.AnimationMixer;
-  readonly model: Model;
-  private readonly actions = new Map<string, THREE.AnimationAction>();
-  current = '';
-
-  constructor(model: Model) {
-    this.model = model;
-    this.mixer = new THREE.AnimationMixer(model.root);
-    for (const clip of model.clips) this.actions.set(clip.name, this.mixer.clipAction(clip));
-  }
-
-  length(name: string) {
-    return this.actions.get(name)?.getClip().duration ?? 0;
-  }
-
-  play(name: string, once = false, restart = false, fade = 0.15) {
-    if (name === this.current && !restart) return;
-    const next = this.actions.get(name);
-    if (!next) return;
-    next.reset();
-    next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
-    next.clampWhenFinished = once;
-    next.play();
-    const previous = this.actions.get(this.current);
-    if (previous && previous !== next) next.crossFadeFrom(previous, fade, false);
-    this.current = name;
-  }
-}
 
 // --- Input --------------------------------------------------------------------------
 
@@ -823,6 +791,9 @@ function updateEnemies(dt: number) {
       const next = at.clone().addScaledVector(direction.clone().normalize(), speed * dt);
       const free = enemy.area === 'world' ? worldGround(next.x, next.z) > level + 0.5 || enemy.entry.flies : dungeonOf(enemy.area).dungeon.walkable(next.x, next.z);
       if (free) at.copy(next);
+      // Its walk plays as fast as it goes: slower going home, faster enraged,
+      // and marking time when something stops it.
+      enemy.body.pace('Move', free ? THREE.MathUtils.clamp(speed / enemy.speed, 0.5, 1.6) : 0.5);
     };
 
     if (enemy.state === 'dead') {
