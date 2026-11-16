@@ -78,9 +78,11 @@ guide requires.
   goal), AI proposed starting options and the team chose and combined them.
   The twist ending, the focus on three planets and the jump across every
   exoplanet are the team's ideas; AI helped develop and write them up.
-- **Images, video and audio:** none generated with AI so far. Any added later
-  will carry a visible watermark (images and video) or an acknowledgment in
-  its description and metadata (audio).
+- **Audio:** every sound effect, ambience and the music in `web/public/audio/`
+  were generated with AI (Google Gemini). Each file says so in its metadata;
+  the prompts and the list are in [docs/audio/SOURCES.md](docs/audio/SOURCES.md).
+- **Images and video:** none generated with AI so far. Any added later will
+  carry a visible watermark.
 
 Keep this section up to date as the project grows.
 
