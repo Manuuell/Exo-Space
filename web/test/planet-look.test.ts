@@ -165,6 +165,42 @@ test('paths join the landing site to the village and every place to go; forests 
   assert.equal(forestDensity(b)(500, 500), 0);
 });
 
+test('the paths are a picture laid on the land: solid in the middle, soft at the edge, nothing far off', async () => {
+  const { planetPaths, pathMask, PATH_LOOK, nameSeed } = await import('../src/models/planet-look.ts');
+  const paths = planetPaths(e, planetFeatures(e));
+  const mask = pathMask(paths, nameSeed('TRAPPIST-1 e'));
+  const at = (x: number, z: number) => {
+    const c = Math.floor((x - mask.origin.x) / PATH_LOOK.metresPerPixel);
+    const r = Math.floor((z - mask.origin.z) / PATH_LOOK.metresPerPixel);
+    return c < 0 || r < 0 || c >= mask.width || r >= mask.height ? [0, 0] : [mask.data[(r * mask.width + c) * 2], mask.data[(r * mask.width + c) * 2 + 1]];
+  };
+  // On every path, its middle is path.
+  for (const line of paths.lines) {
+    const [x, z] = line[Math.floor(line.length / 2)];
+    assert.ok(at(x, z)[0] > 200, `the middle of a path at ${x.toFixed(0)}, ${z.toFixed(0)} is not painted`);
+  }
+  // Across a path the cover fades: full, then partial, then none.
+  const line = paths.lines[1];
+  const [ax, az] = line[Math.floor(line.length / 2)];
+  const [bx, bz] = line[Math.floor(line.length / 2) + 1];
+  const length = Math.hypot(bx - ax, bz - az);
+  const side = (d: number) => at(ax - ((bz - az) / length) * d, az + ((bx - ax) / length) * d)[0];
+  assert.ok(side(0) > 200 && side(8) === 0, `${side(0)} … ${side(8)}`);
+  let partial = 0;
+  for (let d = 0; d <= 5; d += 0.25) if (side(d) > 10 && side(d) < 245) partial++;
+  assert.ok(partial >= 1, 'no soft edge');
+  // Far from every path there is no path, and the rim of the picture is clear.
+  assert.equal(at(5000, 5000)[0], 0);
+  for (let c = 0; c < mask.width; c++) assert.equal(mask.data[c * 2], 0);
+  // The dirt is not one flat colour.
+  const tones = new Set<number>();
+  for (let v = 0; v < mask.width * mask.height; v++) if (mask.data[v * 2] > 200) tones.add(Math.round(mask.data[v * 2 + 1] / 16));
+  assert.ok(tones.size >= 4, `only ${tones.size} tones on the dirt`);
+  // Small enough for the browser: well under 4 MB, and the same every time.
+  assert.ok(mask.data.length < 4_000_000, `${mask.data.length} bytes`);
+  assert.deepEqual(pathMask(paths, nameSeed('TRAPPIST-1 e')).data, mask.data);
+});
+
 test('the valley is the last place alive: beyond its mountains the land is dead', async () => {
   const { forestDensity, FLORA_CELL } = await import('../src/models/planet-look.ts');
   const dead = wasteland(e);
