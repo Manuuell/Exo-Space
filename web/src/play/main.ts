@@ -26,8 +26,8 @@ import { skyray } from '../models/enemy-skyray.ts';
 import { spineback } from '../models/enemy-spineback.ts';
 import { stinglash } from '../models/enemy-stinglash.ts';
 import { twinfang } from '../models/enemy-twinfang.ts';
-import { heroCartoon } from '../models/hero-cartoon.ts';
-import type { Model, ModelEntry } from '../models/kit.ts';
+import { GAIT_SPEED, heroCartoon } from '../models/hero-cartoon.ts';
+import type { ModelEntry } from '../models/kit.ts';
 import { planetWorld } from '../models/planet-scene.ts';
 import { forestDensity } from '../models/planet-look.ts';
 import { glider } from '../models/props-world.ts';
@@ -44,6 +44,7 @@ import { buildDungeon } from './dungeon.ts';
 import type { Dungeon } from './dungeon.ts';
 import { endOfTheWorld } from './ending.ts';
 import type { Ending } from './ending.ts';
+import { Animated, STRIDES } from './animated.ts';
 import { FOLLOW, damp, newFollow, stepFollow } from './camera-follow.ts';
 import { feedLook, newLook, stepLook } from './mouse-look.ts';
 import { DEFAULT_SETTINGS, SETTING_LIMITS, loadSettings, sanitizeSettings, saveSettings } from './settings.ts';
@@ -56,8 +57,13 @@ import './play.css';
 
 // --- Numbers (a first proposal) -------------------------------------------------
 
-const WALK = 4.5;
-const RUN = 8.5;
+// Walking and running speeds, in m/s. They were 4.5 and 8.5, four to five
+// times what her legs cover, so her feet slid; the team chose 3 and 6.5,
+// with longer strides in the clips, played up to PACE_MAX times faster.
+const WALK = 3;
+const RUN = 6.5;
+/** How much faster than its own speed a gait clip may play to keep up with her. */
+const PACE_MAX = 1.8;
 const JUMP = 5.6;
 const GLIDE = 11;
 const GLIDE_SINK = 2.2;
@@ -157,39 +163,6 @@ const stars = (() => {
   return points;
 })();
 scene.add(stars);
-
-// --- Playing clips ----------------------------------------------------------------
-
-/** A model with its clips, playing one at a time with a short blend. */
-class Animated {
-  readonly mixer: THREE.AnimationMixer;
-  readonly model: Model;
-  private readonly actions = new Map<string, THREE.AnimationAction>();
-  current = '';
-
-  constructor(model: Model) {
-    this.model = model;
-    this.mixer = new THREE.AnimationMixer(model.root);
-    for (const clip of model.clips) this.actions.set(clip.name, this.mixer.clipAction(clip));
-  }
-
-  length(name: string) {
-    return this.actions.get(name)?.getClip().duration ?? 0;
-  }
-
-  play(name: string, once = false, restart = false, fade = 0.15) {
-    if (name === this.current && !restart) return;
-    const next = this.actions.get(name);
-    if (!next) return;
-    next.reset();
-    next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
-    next.clampWhenFinished = once;
-    next.play();
-    const previous = this.actions.get(this.current);
-    if (previous && previous !== next) next.crossFadeFrom(previous, fade, false);
-    this.current = name;
-  }
-}
 
 // --- Input --------------------------------------------------------------------------
 
@@ -315,6 +288,39 @@ window.addEventListener('mousemove', (event) => {
 // --- The protagonist -----------------------------------------------------------------
 
 const hero = new Animated(heroCartoon.create());
+/**
+ * The kick of a shot, as a layer: the model's Shoot made additive (how far
+ * each frame moves from the aim it starts from), so it plays on top of
+ * walking or running instead of replacing them and stopping the legs.
+ */
+const SHOT_KICK = 'ShootKick';
+{
+  const shoot = hero.model.clips.find((clip) => clip.name === 'Shoot');
+  if (shoot) {
+    const kick = THREE.AnimationUtils.makeClipAdditive(shoot.clone(), 0);
+    kick.name = SHOT_KICK;
+    hero.add(kick, THREE.AdditiveAnimationBlendMode);
+  }
+}
+/**
+ * The model's Jump, in two parts timed by the game: the spring and the
+ * flight (from 0.3 s to 0.86 s of the clip), played over the time she is
+ * really in the air and held at its end until she lands, without the clip's
+ * own hop (the game lifts her: with both, she rose twice); and the landing
+ * squash (0.86 s to the end, with its dip of the hips), played the moment
+ * her feet touch the ground instead of in mid air.
+ */
+const JUMP_AIR = 'JumpAir';
+const JUMP_LAND = 'JumpLand';
+{
+  const jump = hero.model.clips.find((clip) => clip.name === 'Jump');
+  if (jump) {
+    const air = THREE.AnimationUtils.subclip(jump, JUMP_AIR, 9, 26, 30);
+    air.tracks = air.tracks.filter((track) => track.name !== 'body.position');
+    hero.add(air);
+    hero.add(THREE.AnimationUtils.subclip(jump, JUMP_LAND, 26, 36, 30));
+  }
+}
 scene.add(hero.model.root);
 const hand = hero.model.root.getObjectByName('hold')!;
 const wings = glider.create().root;
@@ -339,6 +345,8 @@ const player = {
   charge: 0,
   /** A shove from a blow, in m/s, that dies away. */
   knock: new THREE.Vector3(),
+  /** Seconds off the ground, to tell a real landing from a bump. */
+  airTime: 0,
 };
 
 /** A blow throws her back from where it came, and up if `up` > 0. */
@@ -823,6 +831,9 @@ function updateEnemies(dt: number) {
       const next = at.clone().addScaledVector(direction.clone().normalize(), speed * dt);
       const free = enemy.area === 'world' ? worldGround(next.x, next.z) > level + 0.5 || enemy.entry.flies : dungeonOf(enemy.area).dungeon.walkable(next.x, next.z);
       if (free) at.copy(next);
+      // Its walk plays as fast as it goes: slower going home, faster enraged,
+      // and marking time when something stops it.
+      enemy.body.pace('Move', free ? THREE.MathUtils.clamp(speed / enemy.speed, 0.5, 1.6) : 0.5);
     };
 
     if (enemy.state === 'dead') {
@@ -1809,8 +1820,7 @@ function pulse() {
   const at = player.position.clone().setY(player.position.y + 1);
   ring(at, '#c58bff', PULSE.radius, 0.45);
   flash(at, '#8d4bff', 2.5, 0.35);
-  hero.play('Shoot', true, true, 0.05);
-  player.busy = 0.3;
+  hero.overlay(SHOT_KICK);
   for (const enemy of here()) {
     if (enemy.health <= 0) continue;
     const away = enemy.object.position.clone().sub(player.position);
@@ -2980,6 +2990,8 @@ function stepFoot(dt: number) {
   // A blow's shove, dying away.
   move.add(p.knock);
   p.knock.multiplyScalar(Math.max(0, 1 - dt * 5));
+  const startX = p.position.x;
+  const startZ = p.position.z;
   if (move.lengthSq() > 0) {
     const step = move.clone().multiplyScalar(dt);
     const next = p.position.clone().add(step);
@@ -2999,8 +3011,12 @@ function stepFoot(dt: number) {
     if (p.grounded) {
       p.velocityY = JUMP;
       p.grounded = false;
-      p.busy = 0.9;
-      hero.play('Jump', true, true, 0.08);
+      p.busy = 0;
+      // The spring and the flight, stretched over the time she will really
+      // be in the air under this planet's gravity, so the legs reach down
+      // for the ground as she gets there.
+      hero.play(JUMP_AIR, true, true, 0.08);
+      hero.pace(JUMP_AIR, hero.length(JUMP_AIR) / Math.max(0.4, (2 * JUMP) / flightWorld.gravity));
     } else if (!p.gliding && p.position.y - floor > 2.5) {
       p.gliding = true;
     } else if (p.gliding) {
@@ -3011,12 +3027,21 @@ function stepFoot(dt: number) {
   if (p.gliding) p.velocityY = Math.max(p.velocityY, -GLIDE_SINK);
   p.position.y += p.velocityY * dt;
   if (p.position.y <= floor) {
+    // A real landing (not a bump of the ground) squashes her as her feet touch.
+    const landed = !p.grounded && p.airTime > 0.25;
     p.position.y = floor;
     p.velocityY = 0;
     p.grounded = true;
     p.gliding = false;
-  } else if (p.position.y > floor + 0.3) {
-    p.grounded = false;
+    p.airTime = 0;
+    if (landed) {
+      hero.play(JUMP_LAND, true, true);
+      // Standing, the whole squash plays; on the move, the legs take over soon.
+      p.busy = moving ? 0.12 : hero.length(JUMP_LAND) * 0.9;
+    }
+  } else {
+    p.airTime += dt;
+    if (p.position.y > floor + 0.3) p.grounded = false;
   }
   wings.visible = p.gliding;
 
@@ -3030,20 +3055,37 @@ function stepFoot(dt: number) {
   p.cooldown = Math.max(0, p.cooldown - dt);
   if (firing && p.cooldown <= 0 && !p.gliding && mapScreen.hidden) {
     p.cooldown = ARSENAL[p.arm].cooldown;
-    hero.play('Shoot', true, true, 0.05);
+    // The first shot raises the weapon at once: into the aiming legs she is
+    // already on (standing, walking or running). Then the kick of the shot
+    // plays on top of them as its own layer, so the legs keep going.
+    if (p.grounded && p.busy <= 0) {
+      const aimGait = moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim';
+      if (hero.current !== aimGait) hero.play(aimGait, false, false, 0.05);
+    }
+    hero.overlay(SHOT_KICK);
     hero.mixer.update(0);
     hero.model.root.updateMatrixWorld(true);
     fire();
-    p.busy = Math.min(ARSENAL[p.arm].cooldown, hero.length('Shoot'));
   }
 
   p.busy = Math.max(0, p.busy - dt);
   if (p.busy <= 0) {
     if (p.gliding) hero.play('Aim');
-    else if (!p.grounded) hero.play('Jump', true);
+    else if (!p.grounded && hero.current !== JUMP_AIR) {
+      // Off a ledge, without a jump: straight into the flight, at the top of it.
+      hero.play(JUMP_AIR, true);
+      hero.pace(JUMP_AIR, 1);
+      const air = hero.action(JUMP_AIR);
+      if (air) air.time = hero.length(JUMP_AIR) * 0.45;
+    }
     else if (shooting) hero.play(moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim');
     else hero.play(moving ? (running ? 'Run' : 'Walk') : 'Idle');
   }
+  // The stride plays as fast as she really goes (slower up a steep slope or
+  // along a wall), so the planted foot does not slide.
+  const gait = hero.current === 'Run' || hero.current === 'RunAim' ? GAIT_SPEED.Run : GAIT_SPEED.Walk;
+  const went = dt > 0 ? Math.hypot(p.position.x - startX, p.position.z - startZ) / dt : 0;
+  hero.pace(hero.current, STRIDES.has(hero.current) ? THREE.MathUtils.clamp(went / gait, 0.5, PACE_MAX) : 1);
 
   // Shards, beacons and the ruin, just by getting there.
   features.shards.forEach((spot, k) => {
