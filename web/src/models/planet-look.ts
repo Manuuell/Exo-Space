@@ -606,6 +606,114 @@ export function forestDensity(planet: Partial<PlanetLook> & { name?: string }, g
   };
 }
 
+/** How the dirt paths are painted on the land. */
+export const PATH_LOOK = {
+  /** Half the width of a path, in metres. */
+  halfWidth: 2.3,
+  /** Width of the soft edge where the path fades into the grass, in metres. */
+  feather: 1.1,
+  /** How far the edge wanders in and out, in metres. */
+  wander: 0.45,
+  /** Metres per pixel of the mask. */
+  metresPerPixel: 1,
+  /** Room left around the paths, in metres. */
+  margin: 8,
+};
+
+/**
+ * The paths as a picture to lay over the land, one pixel per metre: the red
+ * channel is how much of the ground is path (1 in the middle, fading to 0
+ * over a soft, slightly wandering edge), the green channel a tone for the
+ * dirt (worn darker along the wheel ruts and the edges, lighter in the
+ * middle, mottled). The land's shader paints it pixel by pixel, so the path
+ * lies exactly on the ground she walks on and can never cover her feet.
+ * Pixels on the rim are always 0, so beyond the picture there is no path.
+ */
+export interface PathMask {
+  /** World position of the corner of the first pixel (lowest x and z). */
+  origin: { x: number; z: number };
+  /** Size of the picture, in metres along x and z. */
+  size: { x: number; z: number };
+  width: number;
+  height: number;
+  /** Two bytes per pixel, row by row along z: coverage and tone. */
+  data: Uint8Array;
+}
+
+export function pathMask(paths: Pick<PlanetPaths, 'lines'>, seed: number, look = PATH_LOOK): PathMask {
+  const step = look.metresPerPixel;
+  const reach = look.halfWidth + look.feather + look.wander + 1;
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (const line of paths.lines) {
+    for (const [x, z] of line) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+  }
+  if (!Number.isFinite(minX)) return { origin: { x: 0, z: 0 }, size: { x: step * 2, z: step * 2 }, width: 2, height: 2, data: new Uint8Array(8) };
+  const pad = reach + look.margin;
+  const origin = { x: Math.floor((minX - pad) / step) * step, z: Math.floor((minZ - pad) / step) * step };
+  const width = Math.ceil((maxX + pad - origin.x) / step);
+  const height = Math.ceil((maxZ + pad - origin.z) / step);
+  // Distance from every pixel near a path to the nearest stretch of it.
+  const distance = new Float32Array(width * height).fill(Infinity);
+  for (const line of paths.lines) {
+    for (let i = 1; i < line.length; i++) {
+      const [x0, z0] = line[i - 1];
+      const [x1, z1] = line[i];
+      const dx = x1 - x0;
+      const dz = z1 - z0;
+      const length2 = dx * dx + dz * dz || 1;
+      const c0 = Math.max(1, Math.floor((Math.min(x0, x1) - reach - origin.x) / step));
+      const c1 = Math.min(width - 2, Math.ceil((Math.max(x0, x1) + reach - origin.x) / step));
+      const r0 = Math.max(1, Math.floor((Math.min(z0, z1) - reach - origin.z) / step));
+      const r1 = Math.min(height - 2, Math.ceil((Math.max(z0, z1) + reach - origin.z) / step));
+      for (let r = r0; r <= r1; r++) {
+        const pz = origin.z + (r + 0.5) * step;
+        for (let c = c0; c <= c1; c++) {
+          const px = origin.x + (c + 0.5) * step;
+          const t = Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / length2));
+          const d = Math.hypot(px - x0 - dx * t, pz - z0 - dz * t);
+          const v = r * width + c;
+          if (d < distance[v]) distance[v] = d;
+        }
+      }
+    }
+  }
+  const data = new Uint8Array(width * height * 2);
+  const edge = (a: number, b: number, x: number) => {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  for (let r = 1; r < height - 1; r++) {
+    const pz = origin.z + (r + 0.5) * step;
+    for (let c = 1; c < width - 1; c++) {
+      const v = r * width + c;
+      const d = distance[v];
+      if (!(d < reach)) continue;
+      const px = origin.x + (c + 0.5) * step;
+      // The edge wanders a little, so the path does not look ruled.
+      const half = look.halfWidth + fbm(px / 9, pz / 9, seed + 501, 2) * look.wander * 2;
+      const cover = 1 - edge(half - look.feather / 2, half + look.feather / 2, d);
+      if (cover <= 0) continue;
+      // Tone: darker ruts a third of the way out, darker towards the edge,
+      // mottled by small patches of grit.
+      const across = d / Math.max(0.5, half);
+      const rut = Math.exp(-((across - 0.45) ** 2) / 0.012);
+      const mottle = fbm(px / 2.3, pz / 2.3, seed + 503, 3);
+      const tone = 0.62 - 0.22 * rut - 0.18 * edge(0.55, 1.05, across) + 0.22 * mottle;
+      data[v * 2] = Math.round(cover * 255);
+      data[v * 2 + 1] = Math.round(Math.max(0, Math.min(1, tone)) * 255);
+    }
+  }
+  return { origin, size: { x: width * step, z: height * step }, width, height, data };
+}
+
 export interface PlanetPaths {
   /** Each path, as points along it ([x, z], about 10 m apart). */
   lines: [number, number][][];

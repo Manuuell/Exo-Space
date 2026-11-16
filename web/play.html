@@ -54,6 +54,7 @@
       <p>Mouse look · <kbd>Click</kbd> shoot · <kbd>Right click</kbd> aim · <kbd>1</kbd>–<kbd>4</kbd> weapon</p>
       <p><kbd>E</kbd> gravity pulse · <kbd>Q</kbd> starfall, once charged · <kbd>F</kbd> talk, open, board</p>
       <p><kbd>M</kbd> map: click a lit beacon to travel there · <kbd>T</kbd> what the ship needs, and where</p>
+      <p><kbd>O</kbd> settings: mouse sensitivity, invert, field of view</p>
       <h2>In the ship</h2>
       <p><kbd>F</kbd> land and get out · <kbd>L</kbd> take off, land · <kbd>W</kbd><kbd>S</kbd> speed · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>↑</kbd><kbd>↓</kbd> nose</p>
       <p><kbd>Space</kbd><kbd>C</kbd> rise, sink · <kbd>Shift</kbd> boost · <kbd>Click</kbd> lasers, and <kbd>F</kbd> too in space</p>
@@ -61,6 +62,27 @@
       <p>In space: shoot asteroids for ore and crystal, fly through golden motes for solar energy</p>
     </div>
 
+    <!-- Settings (O): how the camera follows the mouse. -->
+    <div id="settings" hidden role="dialog" aria-labelledby="settings-title">
+      <h2 id="settings-title">Settings</h2>
+      <label class="setting">
+        <span>Mouse sensitivity</span>
+        <input type="range" id="set-sensitivity" />
+        <span class="value" id="set-sensitivity-value"></span>
+      </label>
+      <label class="setting">
+        <span>Field of view</span>
+        <input type="range" id="set-fov" />
+        <span class="value" id="set-fov-value"></span>
+      </label>
+      <label class="setting check"><input type="checkbox" id="set-invert" /><span>Invert mouse up and down</span></label>
+      <label class="setting check"><input type="checkbox" id="set-smoothing" /><span>Smooth the mouse</span></label>
+      <label class="setting check"><input type="checkbox" id="set-raw" /><span>Raw mouse input (no pointer acceleration)</span></label>
+      <div class="settings-foot">
+        <button type="button" id="set-reset">Reset to defaults</button>
+        <span class="small"><kbd>O</kbd> to close · click the game to look around again</span>
+      </div>
+    </div>
     <!-- The map of the region. -->
     <div id="worldmap" hidden>
       <div class="frame">
@@ -84,7 +106,7 @@
     <p id="caption" hidden></p>
     <div id="ending" hidden></div>
     <div id="fade"></div>
-    <div id="start"><button type="button" id="start-button">Click to play</button><p>Mouse look needs the pointer: <kbd>Esc</kbd> gives it back. <kbd>H</kbd> shows the controls, <kbd>M</kbd> the map, <kbd>T</kbd> what the ship needs to leave.</p></div>
+    <div id="start"><button type="button" id="start-button">Click to play</button><p>Mouse look needs the pointer: <kbd>Esc</kbd> gives it back. <kbd>H</kbd> shows the controls, <kbd>M</kbd> the map, <kbd>T</kbd> what the ship needs to leave, <kbd>O</kbd> the settings.</p></div>
     <script type="module" src="/src/play/main.ts"></script>
   </body>
 </html>

@@ -13,8 +13,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { PlanetLook } from './contract.ts';
-import { FLORA_CELL, LAST_VALLEY, PROP_CELL, fbm, floraInCell, forestDensity, hash2, mix, nameSeed, planetFeatures, planetGround, planetPaths, planetScenery, propsInCell, wasteland } from './planet-look.ts';
-import type { PlanetPaths } from './planet-look.ts';
+import { FLORA_CELL, LAST_VALLEY, PROP_CELL, fbm, floraInCell, forestDensity, hash2, mix, nameSeed, pathMask, planetFeatures, planetGround, planetPaths, planetScenery, propsInCell, wasteland } from './planet-look.ts';
+import type { PathMask, PlanetPaths } from './planet-look.ts';
 import type { Flora, FloraKind, PlanetScenery, Prop, PropKind, Species } from './planet-look.ts';
 import type { ModelEntry } from './kit.ts';
 import { giantTree } from './prop-giant-tree.ts';
@@ -101,12 +101,26 @@ const LAND_RAMP = (() => {
  * Makes a material bend the world down with distance from the camera, and,
  * with `rim`, glow softly along the edges that turn away from it.
  */
-function curved<T extends THREE.Material>(material: T, radius: { value: number }, rim = 0, hole = 0, wind?: { value: number }): T {
+function curved<T extends THREE.Material>(material: T, radius: { value: number }, rim = 0, hole = 0, wind?: { value: number }, path?: PathPaint): T {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.curveRadius = radius;
     if (wind) shader.uniforms.windTime = wind;
+    if (path) {
+      shader.uniforms.pathMask = { value: path.texture };
+      shader.uniforms.pathOrigin = { value: path.origin };
+      shader.uniforms.pathSize = { value: path.size };
+      shader.uniforms.pathColour = { value: path.colour };
+      // The dirt is painted pixel by pixel from the mask, over the land's
+      // own colour and under the material's (which the end of the world
+      // darkens), so it chars with the land.
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D pathMask;\nuniform vec3 pathColour;\nvarying vec2 vPathUv;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+vec2 pathTexel = texture2D( pathMask, vPathUv ).rg;
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuse * pathColour * ( 0.78 + 0.44 * pathTexel.g ), pathTexel.r );`);
+    }
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nuniform float curveRadius;${wind ? '\nuniform float windTime;' : ''}`)
+      .replace('#include <common>', `#include <common>\nuniform float curveRadius;${wind ? '\nuniform float windTime;' : ''}${path ? '\nuniform vec2 pathOrigin;\nuniform vec2 pathSize;\nvarying vec2 vPathUv;' : ''}`)
       .replace('#include <project_vertex>', `${wind ? `
 #ifdef USE_INSTANCING
   float sway = sin( windTime * 1.8 + instanceMatrix[3].x * 0.35 + instanceMatrix[3].z * 0.27 );
@@ -118,6 +132,7 @@ vec4 mvPosition = vec4( transformed, 1.0 );
   mvPosition = instanceMatrix * mvPosition;
 #endif
 vec4 curvedWorld = modelMatrix * mvPosition;
+${path ? 'vPathUv = ( curvedWorld.xz - pathOrigin ) / pathSize;' : ''}
 vec2 curveOffset = curvedWorld.xz - cameraPosition.xz;
 curvedWorld.y -= dot( curveOffset, curveOffset ) / ( 2.0 * curveRadius );
 ${hole > 0 ? `curvedWorld.y -= 90.0 * ( 1.0 - smoothstep( ${(hole - 120).toFixed(1)}, ${hole.toFixed(1)}, length( curveOffset ) ) );` : ''}
@@ -131,8 +146,34 @@ gl_Position = projectionMatrix * mvPosition;
         .replace('#include <opaque_fragment>', 'outgoingLight += mix( vec3( 1.0 ), diffuseColor.rgb, 0.5 ) * softRim * pow( 1.0 - saturate( dot( geometryNormal, geometryViewDir ) ), 2.4 );\n#include <opaque_fragment>');
     }
   };
-  material.customProgramCacheKey = () => `planet-curved${rim > 0 ? '-soft' : ''}${hole > 0 ? `-hole${hole}` : ''}${wind ? '-wind' : ''}`;
+  material.customProgramCacheKey = () => `planet-curved${rim > 0 ? '-soft' : ''}${hole > 0 ? `-hole${hole}` : ''}${wind ? '-wind' : ''}${path ? '-path' : ''}`;
   return material;
+}
+
+/** The dirt paths, as the land's shader paints them (see pathMask in planet-look.ts). */
+interface PathPaint {
+  texture: THREE.DataTexture;
+  origin: THREE.Vector2;
+  size: THREE.Vector2;
+  colour: THREE.Color;
+}
+
+function pathPaint(mask: PathMask): PathPaint {
+  const texture = new THREE.DataTexture(mask.data, mask.width, mask.height, THREE.RGFormat, THREE.UnsignedByteType);
+  texture.unpackAlignment = 1;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  // Mipmaps, so the paths do not shimmer seen from far or from the ship.
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return {
+    texture,
+    origin: new THREE.Vector2(mask.origin.x, mask.origin.z),
+    size: new THREE.Vector2(mask.size.x, mask.size.z),
+    colour: colour('#dcc394'),
+  };
 }
 
 interface Paint {
@@ -145,6 +186,8 @@ interface Paint {
   rim?: number;
   /** Sinks the land around the camera, out to this many metres. */
   hole?: number;
+  /** Dirt paths painted on it (the land only). */
+  path?: PathPaint;
   /** The land's deeper light ramp instead of the characters'. */
   land?: boolean;
 }
@@ -155,7 +198,7 @@ function paint(radius: { value: number }, p: Paint): THREE.Material {
   if (p.colour) base.color = p.colour;
   if (p.emissive) Object.assign(base, { emissive: p.emissive, emissiveIntensity: p.emissiveIntensity ?? 1 });
   if (p.opacity !== undefined && p.opacity < 1) Object.assign(base, { transparent: true, opacity: p.opacity });
-  return curved(new THREE.MeshToonMaterial({ ...base, gradientMap: p.land ? LAND_RAMP : SOFT_RAMP }), radius, p.rim ?? 0.3, p.hole ?? 0);
+  return curved(new THREE.MeshToonMaterial({ ...base, gradientMap: p.land ? LAND_RAMP : SOFT_RAMP }), radius, p.rim ?? 0.3, p.hole ?? 0, undefined, p.path);
 }
 
 /** Livelier colours for the cartoon look: more saturated, a little lighter. */
@@ -201,6 +244,8 @@ interface PatchOptions {
   under: number;
   /** A hole around the camera, for the coarse patch. */
   hole: number;
+  /** Dirt paths painted on it: the fine patch, which she walks on. */
+  path?: PathPaint;
 }
 
 /** A round patch of land that stays under the camera, redrawn as it moves on. */
@@ -225,7 +270,7 @@ class LandPatch {
     this.heights = new Float32Array((cells + 1) * (cells + 1));
     const geometry = new THREE.PlaneGeometry(cell * cells, cell * cells, cells, cells).rotateX(-Math.PI / 2);
     geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geometry.attributes.position.count * 3), 3));
-    this.mesh = new THREE.Mesh(geometry, paint(radius, { vertexColors: true, rim: 0.18, hole: options.hole, land: true }));
+    this.mesh = new THREE.Mesh(geometry, paint(radius, { vertexColors: true, rim: 0.18, hole: options.hole, land: true, path: options.path }));
     this.mesh.frustumCulled = false;
   }
 
@@ -953,54 +998,6 @@ class ForestField {
   }
 }
 
-/** The dirt paths, laid on the drawn land as ribbons. */
-function pathRibbons(paths: PlanetPaths, ground: (x: number, z: number) => number, level: number, radius: { value: number }): THREE.Mesh {
-  const positions: number[] = [];
-  const index: number[] = [];
-  const HALF_WIDTH = 2.3;
-  for (const line of paths.lines) {
-    // Every 4 m along the path.
-    const points: [number, number][] = [];
-    for (let i = 1; i < line.length; i++) {
-      const [x0, z0] = line[i - 1];
-      const [x1, z1] = line[i];
-      const steps = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) / 4));
-      for (let s = 0; s < steps; s++) points.push([x0 + ((x1 - x0) * s) / steps, z0 + ((z1 - z0) * s) / steps]);
-    }
-    points.push(line[line.length - 1]);
-    const start = positions.length / 3;
-    points.forEach(([x, z], i) => {
-      const [ax, az] = points[Math.max(0, i - 1)];
-      const [bx, bz] = points[Math.min(points.length - 1, i + 1)];
-      const length = Math.hypot(bx - ax, bz - az) || 1;
-      const nx = -(bz - az) / length;
-      const nz = (bx - ax) / length;
-      for (const side of [1, -1]) {
-        const px = x + nx * HALF_WIDTH * side;
-        const pz = z + nz * HALF_WIDTH * side;
-        positions.push(px, Math.max(drawnSurface(ground, px, pz), level + 0.3) + 0.2, pz);
-      }
-      if (i > 0) {
-        const a = start + (i - 1) * 2;
-        index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-      }
-    });
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(index);
-  geometry.computeVertexNormals();
-  const material = paint(radius, { colour: '#dcc394', rim: 0.15 });
-  material.polygonOffset = true;
-  material.polygonOffsetFactor = -2;
-  material.polygonOffsetUnits = -2;
-  material.side = THREE.DoubleSide;
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.frustumCulled = false;
-  mesh.name = 'paths';
-  return mesh;
-}
-
 // --- Tall grass around the player ----------------------------------------------------
 
 /** Metres between clumps of grass, and how far around the camera it grows. */
@@ -1496,7 +1493,10 @@ export function planetWorld(planet: Planet): PlanetWorld {
   const radius = { value: scenery.globeRadius };
   const level = scenery.liquid.level;
   const dead = wasteland(planet);
-  const near = new LandPatch(ground, scenery, seed, radius, { ...NEAR, lag: 6, rim: [0.86, 1], sinkTo: (height) => height - 80, under: 0, hole: 0 }, dead);
+  const features = planetFeatures(planet, ground);
+  const paths = planetPaths(planet, features);
+  // The paths are painted on the fine patch of land, the one she walks on.
+  const near = new LandPatch(ground, scenery, seed, radius, { ...NEAR, lag: 6, rim: [0.86, 1], sinkTo: (height) => height - 80, under: 0, hole: 0, path: pathPaint(pathMask(paths, seed)) }, dead);
   const far = new LandPatch(ground, scenery, seed, radius, { ...FAR, lag: 5, rim: [0.66, 0.97], sinkTo: () => level - SUNK, under: 1.5, hole: HOLE }, dead);
   const liquid = liquidSheet(scenery, radius);
   const props = new PropField(planet, ground, scenery, radius);
@@ -1506,14 +1506,12 @@ export function planetWorld(planet: Planet): PlanetWorld {
   const group = new THREE.Group();
   group.name = 'planet';
   const flora = new FloraField(planet, ground, scenery, radius);
-  const features = planetFeatures(planet, ground);
-  const paths = planetPaths(planet, features);
   const grass = new GrassField(ground, scenery, seed, radius, paths, dead);
   const smoke = new SmokeField(ground, scenery, seed, radius);
   const lava = lavaSea(scenery, radius);
   const forest = new ForestField(planet, ground, scenery, radius, seed, paths);
   const landmarks = new Landmarks(planet, ground, radius);
-  group.add(sky, near.mesh, far.mesh, liquid, props.group, flora.group, grass.mesh, forest.group, pathRibbons(paths, ground, scenery.liquid.level, radius), landmarks.group, landingPad(radius), ball, clouds.mesh, lava, smoke.group);
+  group.add(sky, near.mesh, far.mesh, liquid, props.group, flora.group, grass.mesh, forest.group, landmarks.group, landingPad(radius), ball, clouds.mesh, lava, smoke.group);
   // The end of the world: every material darkens to char and glows like embers.
   const burnable: { material: THREE.Material & { color?: THREE.Color; emissive?: THREE.Color }; color?: THREE.Color; emissive?: THREE.Color }[] = [];
   const CHAR = colour('#2a1210');
