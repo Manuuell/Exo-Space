@@ -44,6 +44,10 @@ import { buildDungeon } from './dungeon.ts';
 import type { Dungeon } from './dungeon.ts';
 import { endOfTheWorld } from './ending.ts';
 import type { Ending } from './ending.ts';
+import { FOLLOW, damp, newFollow, stepFollow } from './camera-follow.ts';
+import { feedLook, newLook, stepLook } from './mouse-look.ts';
+import { DEFAULT_SETTINGS, SETTING_LIMITS, loadSettings, sanitizeSettings, saveSettings } from './settings.ts';
+import type { Settings } from './settings.ts';
 import { nextTask, ready, wayHome } from './way-home.ts';
 import type { Progress, Task, TaskId } from './way-home.ts';
 import { distanceLightYears } from '../data/derived.ts';
@@ -194,6 +198,11 @@ const pressed = new Set<string>();
 let firing = false;
 let aiming = false;
 window.addEventListener('keydown', (event) => {
+  // The settings' sliders keep their own keys; only O (close) gets through.
+  if (event.target instanceof HTMLInputElement) {
+    if (event.code === 'KeyO') pressed.add('KeyO');
+    return;
+  }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
   if (!held.has(event.code)) pressed.add(event.code);
   held.add(event.code);
@@ -202,18 +211,90 @@ window.addEventListener('keyup', (event) => held.delete(event.code));
 window.addEventListener('blur', () => { held.clear(); firing = false; aiming = false; });
 const axis = (plus: string[], minus: string[]) => (plus.some((k) => held.has(k)) ? 1 : 0) - (minus.some((k) => held.has(k)) ? 1 : 0);
 
+// The camera's heading and tilt. The mouse feeds `mouse` (which drops the
+// spikes some browsers send under pointer lock) and it is spent once a
+// frame; the game may also set these directly (a dungeon door, the ship).
 let camYaw = Math.PI;
-/** How far back the camera sits in the forest, eased. */
-let camReach = 6.5;
 let camPitch = 0.18;
+const mouse = newLook(camYaw, camPitch);
+/** The camera's distances on foot, eased: zoom, shoulder, and reach past trees and walls. */
+let follow = newFollow();
+
+// --- Settings (O) ---------------------------------------------------------------------
+
+const browserStorage = (() => { try { return window.localStorage; } catch { return null; } })();
+let settings: Settings = loadSettings(browserStorage);
+const settingsPanel = $<HTMLDivElement>('settings');
+const settingInputs = {
+  sensitivity: $<HTMLInputElement>('set-sensitivity'),
+  fov: $<HTMLInputElement>('set-fov'),
+  invertY: $<HTMLInputElement>('set-invert'),
+  smoothing: $<HTMLInputElement>('set-smoothing'),
+  rawInput: $<HTMLInputElement>('set-raw'),
+};
+const settingValues = { sensitivity: $<HTMLSpanElement>('set-sensitivity-value'), fov: $<HTMLSpanElement>('set-fov-value') };
+settingInputs.sensitivity.min = String(SETTING_LIMITS.sensitivity.min);
+settingInputs.sensitivity.max = String(SETTING_LIMITS.sensitivity.max);
+settingInputs.sensitivity.step = String(SETTING_LIMITS.sensitivity.step);
+settingInputs.fov.min = String(SETTING_LIMITS.fov.min);
+settingInputs.fov.max = String(SETTING_LIMITS.fov.max);
+settingInputs.fov.step = String(SETTING_LIMITS.fov.step);
+function showSettings() {
+  settingInputs.sensitivity.value = String(settings.sensitivity);
+  settingInputs.fov.value = String(settings.fov);
+  settingInputs.invertY.checked = settings.invertY;
+  settingInputs.smoothing.checked = settings.smoothing;
+  settingInputs.rawInput.checked = settings.rawInput;
+  settingValues.sensitivity.textContent = `${settings.sensitivity.toFixed(2)}×`;
+  settingValues.fov.textContent = `${Math.round(settings.fov)}°`;
+}
+function changeSettings(change: Partial<Settings>) {
+  const rawBefore = settings.rawInput;
+  settings = sanitizeSettings({ ...settings, ...change });
+  saveSettings(browserStorage, settings);
+  showSettings();
+  // Raw input is chosen when the pointer is locked: lock it again to apply it.
+  if (settings.rawInput !== rawBefore && locked()) document.exitPointerLock?.();
+}
+settingInputs.sensitivity.addEventListener('input', () => changeSettings({ sensitivity: Number(settingInputs.sensitivity.value) }));
+settingInputs.fov.addEventListener('input', () => changeSettings({ fov: Number(settingInputs.fov.value) }));
+settingInputs.invertY.addEventListener('change', () => changeSettings({ invertY: settingInputs.invertY.checked }));
+settingInputs.smoothing.addEventListener('change', () => changeSettings({ smoothing: settingInputs.smoothing.checked }));
+settingInputs.rawInput.addEventListener('change', () => changeSettings({ rawInput: settingInputs.rawInput.checked }));
+$<HTMLButtonElement>('set-reset').addEventListener('click', () => changeSettings({ ...DEFAULT_SETTINGS }));
+function toggleSettings() {
+  settingsPanel.hidden = !settingsPanel.hidden;
+  if (!settingsPanel.hidden) {
+    showSettings();
+    document.exitPointerLock?.();
+  }
+}
+showSettings();
+
 const locked = () => document.pointerLockElement === canvas;
+/**
+ * Locks the pointer for mouse look. With raw input on, it asks for movement
+ * without the system's pointer acceleration, so the camera turns by how far
+ * the hand moves and not by how fast; a browser that cannot do that gets the
+ * ordinary lock.
+ */
+function lockPointer() {
+  const plain = () => { try { void canvas.requestPointerLock?.(); } catch { /* no pointer lock here */ } };
+  if (!settings.rawInput) return plain();
+  try {
+    const asked = (canvas.requestPointerLock as (options?: { unadjustedMovement?: boolean }) => Promise<void> | void).call(canvas, { unadjustedMovement: true });
+    if (asked && typeof asked.catch === 'function') asked.catch(plain);
+  } catch {
+    plain();
+  }
+}
 const startScreen = $<HTMLDivElement>('start');
 $<HTMLButtonElement>('start-button').addEventListener('click', () => {
   startScreen.hidden = true;
-  canvas.requestPointerLock?.();
+  lockPointer();
   say('TRAPPIST-1 e is dying. This valley is the last place where anyone can live: gather what the ship needs (T), and take its people home.', 8);
 });
-canvas.addEventListener('click', () => { if (!locked() && mapScreen.hidden) canvas.requestPointerLock?.(); });
+canvas.addEventListener('click', () => { if (!locked() && mapScreen.hidden && settingsPanel.hidden) lockPointer(); });
 let dragging = false;
 canvas.addEventListener('mousedown', (event) => {
   if (event.button === 0) firing = true;
@@ -228,8 +309,7 @@ window.addEventListener('mouseup', (event) => {
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 window.addEventListener('mousemove', (event) => {
   if (!locked() && !dragging) return;
-  camYaw -= event.movementX * 0.0026;
-  camPitch = THREE.MathUtils.clamp(camPitch + event.movementY * 0.0022, -0.6, 1.1);
+  feedLook(mouse, event.movementX, event.movementY);
 });
 
 // --- The protagonist -----------------------------------------------------------------
@@ -3050,36 +3130,34 @@ function draw(dt: number, seconds: number) {
   // The camera: over her shoulder on foot, behind the ship in it.
   let out = 0;
   if (mode === 'foot') {
-    const zoom = aiming ? 3.2 : player.gliding ? 9 : 6.5;
     const direction = new THREE.Vector3(Math.sin(camYaw) * Math.cos(camPitch), -Math.sin(camPitch), Math.cos(camYaw) * Math.cos(camPitch));
-    const target = player.position.clone().add(new THREE.Vector3(0, 1.6, 0)).addScaledVector(right(), aiming ? 0.9 : 0.6);
-    camera.position.copy(target).addScaledVector(direction, -zoom);
-    // Inside a dungeon, the camera comes in closer rather than go into a wall.
-    if (place !== 'world') {
-      const dungeon = dungeonOf(place).dungeon;
-      for (let pull = zoom; pull > 1.2 && !dungeon.walkable(camera.position.x, camera.position.z); pull -= 0.4) {
-        camera.position.copy(target).addScaledVector(direction, -pull);
+    const target = player.position.clone().add(new THREE.Vector3(0, 1.6, 0)).addScaledVector(right(), follow.shoulder);
+    // How far back the view is free: of walls in a dungeon; of trunks,
+    // crowns and the land itself outside. The camera rests a little short of
+    // the first thing in the way and never goes behind it; every change of
+    // distance eases (camera-follow.ts) instead of jumping in one frame.
+    const reachable = Math.max(follow.zoom, aiming ? FOLLOW.zoom.aim : player.gliding ? FOLLOW.zoom.glide : FOLLOW.zoom.walk);
+    let clear = reachable;
+    let limit = Infinity;
+    const probe = new THREE.Vector3();
+    const dungeon = place === 'world' ? null : dungeonOf(place).dungeon;
+    for (let d = 0.8; d <= reachable; d += 0.35) {
+      probe.copy(target).addScaledVector(direction, -d);
+      const blocked = dungeon
+        ? !dungeon.walkable(probe.x, probe.z)
+        : world.inCrown(probe.x, probe.y, probe.z) || world.blocked(probe.x, probe.z, 0.25) || probe.y < worldGround(probe.x, probe.z) + 0.3;
+      if (blocked) {
+        clear = Math.max(FOLLOW.reachMin, d - 0.5);
+        limit = Math.max(FOLLOW.reachMin, d - 0.15);
+        break;
       }
     }
-    // In the forest, the camera comes in closer when a tree stands between
-    // it and her, and eases back out once the view is clear.
-    if (place === 'world') {
-      let clear = zoom;
-      const probe = new THREE.Vector3();
-      for (let d = 0.8; d <= zoom; d += 0.35) {
-        probe.copy(target).addScaledVector(direction, -d);
-        if (world.inCrown(probe.x, probe.y, probe.z) || world.blocked(probe.x, probe.z, 0.25)) {
-          clear = Math.max(1.2, d - 0.5);
-          break;
-        }
-      }
-      camReach = clear < camReach ? clear : Math.min(clear, camReach + dt * 4);
-      camera.position.copy(target).addScaledVector(direction, -camReach);
-    }
+    follow = stepFollow(follow, { aiming, gliding: player.gliding }, clear, dt, limit);
+    camera.position.copy(target).addScaledVector(direction, -follow.reach);
     const floor = ground(camera.position.x, camera.position.z) + 0.4;
     if (camera.position.y < floor) camera.position.y = floor;
     camera.lookAt(target.addScaledVector(direction, 10));
-    camera.fov = THREE.MathUtils.lerp(camera.fov, aiming ? 45 : 60, Math.min(1, dt * 10));
+    camera.fov = damp(camera.fov, settings.fov * (aiming ? FOLLOW.aimFov : 1), FOLLOW.fovRate, dt);
   } else {
     chase = stepCamera(chase, flight, dt, flightWorld);
     camera.position.set(chase.position.x, chase.position.y, chase.position.z);
@@ -3187,6 +3265,14 @@ function frame(dt: number) {
   if (pressed.has('KeyJ')) leave();
   if (pressed.has('KeyH')) hud.help.hidden = !hud.help.hidden;
   if (pressed.has('KeyM')) toggleMap();
+  if (pressed.has('KeyO')) toggleSettings();
+  // The mouse turns the camera on foot; in the ship the flight sets it.
+  mouse.yaw = camYaw;
+  mouse.pitch = camPitch;
+  if (mode === 'foot') stepLook(mouse, settings, dt);
+  else mouse.pendingX = mouse.pendingY = 0;
+  camYaw = mouse.yaw;
+  camPitch = mouse.pitch;
   if (mode === 'foot') stepFoot(dt);
   else stepShip(dt);
   scorch(dt);
@@ -3268,5 +3354,60 @@ Object.assign(window, {
       flight = { ...flight, yaw: Math.atan2(dx, dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)), speed: 0 };
     },
     placeShip: (x: number, y: number, z: number) => { flight = { ...flight, mode: 'space', position: { x, y, z }, speed: 0, vertical: 0 }; mode = 'ship'; hero.model.root.visible = false; },
+    /** The camera on foot and the mouse filter, for checking the camera fixes. */
+    get camera() { return { yaw: camYaw, pitch: camPitch, zoom: follow.zoom, shoulder: follow.shoulder, reach: follow.reach, fov: camera.fov, dropped: mouse.dropped, position: camera.position.toArray() }; },
+    /** Feeds one mouse event as the browser would send it. */
+    mouse: (dx: number, dy: number) => feedLook(mouse, dx, dy),
+    get settings() { return { ...settings }; },
+    set: (change: Partial<Settings>) => changeSettings(change),
+  },
+});
+
+// Hooks for the develop-web-game skill's Playwright client: the state of the
+// game as text, and a way to step it by a fixed time.
+function renderGameToText(): string {
+  const near = enemies
+    .filter((enemy) => enemy.health > 0 && enemy.area === place && enemy.object.position.distanceTo(player.position) < 60)
+    .sort((a, b) => a.object.position.distanceTo(player.position) - b.object.position.distanceTo(player.position))
+    .slice(0, 8)
+    .map((enemy) => ({ id: enemy.entry.id, state: enemy.state, health: Math.round(enemy.health), at: enemy.object.position.toArray().map((v) => Math.round(v * 10) / 10) }));
+  return JSON.stringify({
+    note: 'metres; +Y up; yaw 0 looks along +Z and grows towards +X; the landing pad is near the origin',
+    mode,
+    place,
+    started: startScreen.hidden,
+    pointerLocked: locked(),
+    panels: { settings: !settingsPanel.hidden, map: !mapScreen.hidden, help: !hud.help.hidden },
+    player: {
+      at: player.position.toArray().map((v) => Math.round(v * 100) / 100),
+      facing: Math.round(player.facing * 1000) / 1000,
+      health: Math.round(player.health),
+      grounded: player.grounded,
+      gliding: player.gliding,
+      down: player.down,
+      weapon: ARSENAL[player.arm].name,
+      clip: hero.current,
+    },
+    camera: {
+      yaw: Math.round(camYaw * 1000) / 1000,
+      pitch: Math.round(camPitch * 1000) / 1000,
+      zoom: Math.round(follow.zoom * 100) / 100,
+      reach: Math.round(follow.reach * 100) / 100,
+      fov: Math.round(camera.fov * 10) / 10,
+      at: camera.position.toArray().map((v) => Math.round(v * 100) / 100),
+      spikesDropped: mouse.dropped,
+    },
+    settings,
+    ship: { mode: flight.mode, altitude: Math.round(flight.position.y) },
+    enemiesNear: near,
+    tasks: progress(),
+  });
+}
+Object.assign(window, {
+  render_game_to_text: renderGameToText,
+  advanceTime: (ms: number) => {
+    const steps = Math.max(1, Math.round(ms / (1000 / 60)));
+    for (let i = 0; i < steps; i++) frame(1 / 60);
+    renderer.render(activeScene(), camera);
   },
 });
