@@ -302,6 +302,25 @@ const SHOT_KICK = 'ShootKick';
     hero.add(kick, THREE.AdditiveAnimationBlendMode);
   }
 }
+/**
+ * The model's Jump, in two parts timed by the game: the spring and the
+ * flight (from 0.3 s to 0.86 s of the clip), played over the time she is
+ * really in the air and held at its end until she lands, without the clip's
+ * own hop (the game lifts her: with both, she rose twice); and the landing
+ * squash (0.86 s to the end, with its dip of the hips), played the moment
+ * her feet touch the ground instead of in mid air.
+ */
+const JUMP_AIR = 'JumpAir';
+const JUMP_LAND = 'JumpLand';
+{
+  const jump = hero.model.clips.find((clip) => clip.name === 'Jump');
+  if (jump) {
+    const air = THREE.AnimationUtils.subclip(jump, JUMP_AIR, 9, 26, 30);
+    air.tracks = air.tracks.filter((track) => track.name !== 'body.position');
+    hero.add(air);
+    hero.add(THREE.AnimationUtils.subclip(jump, JUMP_LAND, 26, 36, 30));
+  }
+}
 scene.add(hero.model.root);
 const hand = hero.model.root.getObjectByName('hold')!;
 const wings = glider.create().root;
@@ -326,6 +345,8 @@ const player = {
   charge: 0,
   /** A shove from a blow, in m/s, that dies away. */
   knock: new THREE.Vector3(),
+  /** Seconds off the ground, to tell a real landing from a bump. */
+  airTime: 0,
 };
 
 /** A blow throws her back from where it came, and up if `up` > 0. */
@@ -2990,8 +3011,12 @@ function stepFoot(dt: number) {
     if (p.grounded) {
       p.velocityY = JUMP;
       p.grounded = false;
-      p.busy = 0.9;
-      hero.play('Jump', true, true, 0.08);
+      p.busy = 0;
+      // The spring and the flight, stretched over the time she will really
+      // be in the air under this planet's gravity, so the legs reach down
+      // for the ground as she gets there.
+      hero.play(JUMP_AIR, true, true, 0.08);
+      hero.pace(JUMP_AIR, hero.length(JUMP_AIR) / Math.max(0.4, (2 * JUMP) / flightWorld.gravity));
     } else if (!p.gliding && p.position.y - floor > 2.5) {
       p.gliding = true;
     } else if (p.gliding) {
@@ -3002,12 +3027,21 @@ function stepFoot(dt: number) {
   if (p.gliding) p.velocityY = Math.max(p.velocityY, -GLIDE_SINK);
   p.position.y += p.velocityY * dt;
   if (p.position.y <= floor) {
+    // A real landing (not a bump of the ground) squashes her as her feet touch.
+    const landed = !p.grounded && p.airTime > 0.25;
     p.position.y = floor;
     p.velocityY = 0;
     p.grounded = true;
     p.gliding = false;
-  } else if (p.position.y > floor + 0.3) {
-    p.grounded = false;
+    p.airTime = 0;
+    if (landed) {
+      hero.play(JUMP_LAND, true, true);
+      // Standing, the whole squash plays; on the move, the legs take over soon.
+      p.busy = moving ? 0.12 : hero.length(JUMP_LAND) * 0.9;
+    }
+  } else {
+    p.airTime += dt;
+    if (p.position.y > floor + 0.3) p.grounded = false;
   }
   wings.visible = p.gliding;
 
@@ -3037,7 +3071,13 @@ function stepFoot(dt: number) {
   p.busy = Math.max(0, p.busy - dt);
   if (p.busy <= 0) {
     if (p.gliding) hero.play('Aim');
-    else if (!p.grounded) hero.play('Jump', true);
+    else if (!p.grounded && hero.current !== JUMP_AIR) {
+      // Off a ledge, without a jump: straight into the flight, at the top of it.
+      hero.play(JUMP_AIR, true);
+      hero.pace(JUMP_AIR, 1);
+      const air = hero.action(JUMP_AIR);
+      if (air) air.time = hero.length(JUMP_AIR) * 0.45;
+    }
     else if (shooting) hero.play(moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim');
     else hero.play(moving ? (running ? 'Run' : 'Walk') : 'Idle');
   }
