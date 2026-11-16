@@ -3071,12 +3071,15 @@ function stepFoot(dt: number) {
   p.busy = Math.max(0, p.busy - dt);
   if (p.busy <= 0) {
     if (p.gliding) hero.play('Aim');
-    else if (!p.grounded && hero.current !== JUMP_AIR) {
-      // Off a ledge, without a jump: straight into the flight, at the top of it.
-      hero.play(JUMP_AIR, true);
-      hero.pace(JUMP_AIR, 1);
-      const air = hero.action(JUMP_AIR);
-      if (air) air.time = hero.length(JUMP_AIR) * 0.45;
+    else if (!p.grounded) {
+      // In the air the flight plays on. Off a ledge, without a jump, it
+      // starts at the top of the flight.
+      if (hero.current !== JUMP_AIR) {
+        hero.play(JUMP_AIR, true);
+        hero.pace(JUMP_AIR, 1);
+        const air = hero.action(JUMP_AIR);
+        if (air) air.time = hero.length(JUMP_AIR) * 0.45;
+      }
     }
     else if (shooting) hero.play(moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim');
     else hero.play(moving ? (running ? 'Run' : 'Walk') : 'Idle');
