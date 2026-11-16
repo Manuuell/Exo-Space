@@ -42,3 +42,24 @@ test('a clip plays at the pace it is given', () => {
   hero.mixer.update(0.1);
   assert.ok(Math.abs(hero.action('Walk')!.time - 0.2) < 1e-6);
 });
+
+test('a shot’s kick plays on top of running: the legs keep their stride, the arm takes the kick', async () => {
+  const THREE = await import('three');
+  const pose = (withKick: boolean) => {
+    const hero = new Animated(heroCartoon.create());
+    const shoot = hero.model.clips.find((clip) => clip.name === 'Shoot')!;
+    const kick = THREE.AnimationUtils.makeClipAdditive(shoot.clone(), 0);
+    kick.name = 'ShootKick';
+    hero.add(kick, THREE.AdditiveAnimationBlendMode);
+    hero.play('RunAim');
+    hero.mixer.update(0.2);
+    if (withKick) hero.overlay('ShootKick');
+    hero.mixer.update(0.05);
+    const angle = (name: string) => hero.model.root.getObjectByName(name)!.quaternion.clone();
+    return { leg: angle('leg_l'), arm: angle('forearm_r') };
+  };
+  const plain = pose(false);
+  const kicked = pose(true);
+  assert.ok(plain.leg.angleTo(kicked.leg) < 1e-3, 'the kick moved the legs');
+  assert.ok(plain.arm.angleTo(kicked.arm) > 0.1, 'the kick did not move the arm');
+});

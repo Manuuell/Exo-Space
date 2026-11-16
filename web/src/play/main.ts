@@ -288,6 +288,20 @@ window.addEventListener('mousemove', (event) => {
 // --- The protagonist -----------------------------------------------------------------
 
 const hero = new Animated(heroCartoon.create());
+/**
+ * The kick of a shot, as a layer: the model's Shoot made additive (how far
+ * each frame moves from the aim it starts from), so it plays on top of
+ * walking or running instead of replacing them and stopping the legs.
+ */
+const SHOT_KICK = 'ShootKick';
+{
+  const shoot = hero.model.clips.find((clip) => clip.name === 'Shoot');
+  if (shoot) {
+    const kick = THREE.AnimationUtils.makeClipAdditive(shoot.clone(), 0);
+    kick.name = SHOT_KICK;
+    hero.add(kick, THREE.AdditiveAnimationBlendMode);
+  }
+}
 scene.add(hero.model.root);
 const hand = hero.model.root.getObjectByName('hold')!;
 const wings = glider.create().root;
@@ -1785,8 +1799,7 @@ function pulse() {
   const at = player.position.clone().setY(player.position.y + 1);
   ring(at, '#c58bff', PULSE.radius, 0.45);
   flash(at, '#8d4bff', 2.5, 0.35);
-  hero.play('Shoot', true, true, 0.05);
-  player.busy = 0.3;
+  hero.overlay(SHOT_KICK);
   for (const enemy of here()) {
     if (enemy.health <= 0) continue;
     const away = enemy.object.position.clone().sub(player.position);
@@ -3008,11 +3021,17 @@ function stepFoot(dt: number) {
   p.cooldown = Math.max(0, p.cooldown - dt);
   if (firing && p.cooldown <= 0 && !p.gliding && mapScreen.hidden) {
     p.cooldown = ARSENAL[p.arm].cooldown;
-    hero.play('Shoot', true, true, 0.05);
+    // The first shot raises the weapon at once: into the aiming legs she is
+    // already on (standing, walking or running). Then the kick of the shot
+    // plays on top of them as its own layer, so the legs keep going.
+    if (p.grounded && p.busy <= 0) {
+      const aimGait = moving ? (running ? 'RunAim' : 'WalkAim') : 'Aim';
+      if (hero.current !== aimGait) hero.play(aimGait, false, false, 0.05);
+    }
+    hero.overlay(SHOT_KICK);
     hero.mixer.update(0);
     hero.model.root.updateMatrixWorld(true);
     fire();
-    p.busy = Math.min(ARSENAL[p.arm].cooldown, hero.length('Shoot'));
   }
 
   p.busy = Math.max(0, p.busy - dt);
