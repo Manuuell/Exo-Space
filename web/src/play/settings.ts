@@ -17,6 +17,11 @@ export interface Settings {
   smoothing: boolean;
   /** Asks the browser for raw mouse input, without pointer acceleration. */
   rawInput: boolean;
+  /** Volumes from 0 to 1: everything, then the music, the effects and the ambience under it. */
+  master: number;
+  music: number;
+  sfx: number;
+  ambience: number;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
@@ -25,11 +30,21 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = {
   fov: 60,
   smoothing: false,
   rawInput: true,
+  master: 0.8,
+  music: 0.45,
+  sfx: 0.9,
+  ambience: 0.6,
 };
+
+const VOLUME = { min: 0, max: 1, step: 0.05 } as const;
 
 export const SETTING_LIMITS = {
   sensitivity: { min: 0.2, max: 3, step: 0.05 },
   fov: { min: 50, max: 90, step: 1 },
+  master: VOLUME,
+  music: VOLUME,
+  sfx: VOLUME,
+  ambience: VOLUME,
 } as const;
 
 export interface Storage {
@@ -53,6 +68,10 @@ export function sanitizeSettings(value: unknown): Settings {
     fov: number(raw.fov, DEFAULT_SETTINGS.fov, SETTING_LIMITS.fov),
     smoothing: flag(raw.smoothing, DEFAULT_SETTINGS.smoothing),
     rawInput: flag(raw.rawInput, DEFAULT_SETTINGS.rawInput),
+    master: number(raw.master, DEFAULT_SETTINGS.master, VOLUME),
+    music: number(raw.music, DEFAULT_SETTINGS.music, VOLUME),
+    sfx: number(raw.sfx, DEFAULT_SETTINGS.sfx, VOLUME),
+    ambience: number(raw.ambience, DEFAULT_SETTINGS.ambience, VOLUME),
   };
 }
 
